@@ -39,3 +39,6 @@ CREATE VIEW ppm AS
       FROM do_render;
   ;
 SELECT * FROM ppm;
+
+.output img.ppm
+SELECT * FROM ppm;
