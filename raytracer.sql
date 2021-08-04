@@ -20,17 +20,20 @@ DROP TABLE IF EXISTS img;
 CREATE TABLE img (res_x INTEGER NOT NULL, res_y INTEGER NOT NULL);
 INSERT INTO img (res_x, res_y) VALUES (400, 400);
 
-DROP VIEW IF EXISTS do_render;
-CREATE VIEW do_render AS
+DROP VIEW IF EXISTS rays;
+CREATE VIEW rays AS
     WITH RECURSIVE xs AS (SELECT 0 AS u, 0.0 AS img_frac_x UNION ALL SELECT u+1, (u+1.0)/img.res_x FROM xs, img WHERE xs.u<img.res_x-1),
      ys AS (SELECT 0 AS v, 0.0 AS img_frac_y UNION ALL SELECT v+1, (v+1.0)/img.res_y FROM ys, img WHERE ys.v<img.res_y-1),
-     rays(img_x, img_y, depth, ray_col, x1, y1, z1, dir_x, dir_y, dir_z, x2, y2, z2) AS
+     rays(img_x, img_y, depth, ray_col, x1, y1, z1, dir_x, dir_y, dir_z, x2, y2, z2, ray_len) AS
          (SELECT xs.u, ys.v, 0, NULL, c.x, c.y, c.z,
                 SIN(-(fov_rad/2.0)+img_frac_x*fov_rad), SIN(-(fov_rad/2.0)+img_frac_y*fov_rad), 1.0,
-                 c.x + SIN(-(fov_rad/2.0)+img_frac_x*fov_rad), c.y + SIN(-(fov_rad/2.0)+img_frac_y*fov_rad), z + 1.0
+                 c.x + SIN(-(fov_rad/2.0)+img_frac_x*fov_rad), c.y + SIN(-(fov_rad/2.0)+img_frac_y*fov_rad), z + 1.0,
+                 0.0
               FROM camera c, img, xs, ys
         UNION ALL
-          SELECT img_x, img_y, depth+1, sphere_col, x1, y1, z1, dir_x, dir_y, dir_z, x2, y2, z2 FROM rays r
+          SELECT img_x, img_y, depth+1, sphere_col, x1, y1, z1, dir_x, dir_y, dir_z, x2, y2, z2,
+                 SQRT((cx-x1)*(cx-x1) + (cy-y1)*(cy-y1) + (cz-z1)*(cz-z1)) -- distance to center. fixme should be distance to intersection
+           FROM rays r
            INNER JOIN sphere s ON
                -- https://mathworld.wolfram.com/Point-LineDistance3-Dimensional.html
                -- d=len( circ_center-p1 X circ_center-p2) / len(dir_x, dir_y, dir_z)
@@ -40,6 +43,10 @@ CREATE VIEW do_render AS
                     ((cx-x1)*(cy-y2)-(cy-y1)*(cx-x2))*((cx-x1)*(cy-y2)-(cy-y1)*(cx-x2))) /
                 (dir_x*dir_x + dir_y*dir_Y + dir_z*dir_z)
               WHERE depth<3)
+   SELECT * FROM rays;
+
+DROP VIEW IF EXISTS do_render;
+CREATE VIEW do_render AS
  SELECT img_x, img_y, COALESCE(MAX(ray_col), 0.5+0.5*(dir_y/(SQRT(dir_x*dir_x + dir_y*dir_y + dir_z*dir_z)))) AS col FROM rays
     GROUP BY img_y, img_x
     ORDER BY img_y, img_x;
