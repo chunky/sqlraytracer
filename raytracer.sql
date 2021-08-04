@@ -5,7 +5,7 @@ CREATE TABLE sphere (sphereid INTEGER PRIMARY KEY,
 INSERT INTO sphere (cx, cy, cz, sphere_col, radius) VALUES
                                             (4, 3, -10, 0.0, 5),
                                             (-5, 7, 12, 0.3, 7),
-                                            (12, -15, -3, 0.7, 8),
+                                            (12, -15, -3, 0.4, 8),
                                             (-2, -3, 8, 1.0, 10)
                                             ;
 UPDATE sphere SET radius2 = radius*radius WHERE radius2 IS NULL;
@@ -35,7 +35,7 @@ CREATE VIEW rays AS
           SELECT img_x, img_y, depth+1, max_ray_depth, sphere_col, x1, y1, z1, dir_x, dir_y, dir_z, x2, y2, z2,
                  SQRT((cx-x1)*(cx-x1) + (cy-y1)*(cy-y1) + (cz-z1)*(cz-z1)) -- distance to center. fixme should be distance to intersection
            FROM rays r
-           INNER JOIN sphere s ON
+           LEFT JOIN sphere s ON
                -- https://mathworld.wolfram.com/Point-LineDistance3-Dimensional.html
                -- d=len( circ_center-p1 X circ_center-p2) / len(dir_x, dir_y, dir_z)
              s.radius2 >
@@ -48,7 +48,7 @@ CREATE VIEW rays AS
 
 DROP VIEW IF EXISTS do_render;
 CREATE VIEW do_render AS
- SELECT A.img_x, A.img_y, COALESCE(MAX(A.ray_col), 0.5+0.5*(A.dir_y/(SQRT(A.dir_x*A.dir_x + A.dir_y*A.dir_y + A.dir_z*A.dir_z)))) AS col
+ SELECT A.img_x, A.img_y, COALESCE(MAX(A.ray_col * 1.0/A.depth), 0.5+0.5*(A.dir_y/(SQRT(A.dir_x*A.dir_x + A.dir_y*A.dir_y + A.dir_z*A.dir_z)))) AS col
     FROM rays A LEFT JOIN rays B ON A.img_x=B.img_x AND A.img_y=B.img_y AND A.ray_len_idx=1 AND A.depth=B.depth-1
     GROUP BY A.img_y, A.img_x
     ORDER BY A.img_y, A.img_x;
@@ -57,11 +57,12 @@ CREATE VIEW do_render AS
 
 DROP VIEW IF EXISTS ppm;
 CREATE VIEW ppm AS
+ WITH maxcol(mc) AS (SELECT 255)
     SELECT 'P3'
   UNION ALL
-    SELECT res_x || ' ' || res_y || ' 255' FROM img
+    SELECT res_x || ' ' || res_y || ' ' || mc FROM img, maxcol
   UNION ALL
-    SELECT CAST(col*255 AS INTEGER) || ' ' || CAST(col*255 AS INTEGER) || ' ' || CAST(col*255 AS INTEGER)
-      FROM do_render;
+    SELECT CAST(col*mc AS INTEGER) || ' ' || CAST(col*mc AS INTEGER) || ' ' || CAST(col*mc AS INTEGER)
+      FROM do_render, maxcol;
   ;
 SELECT * FROM ppm;
