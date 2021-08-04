@@ -1,12 +1,13 @@
 DROP TABLE IF EXISTS sphere;
 CREATE TABLE sphere (sphereid INTEGER PRIMARY KEY,
   cx REAL NOT NULL, cy REAL NOT NULL, cz REAL NOT NULL,
-  sphere_col REAL NOT NULL, radius REAL NOT NULL, radius2 REAL);
-INSERT INTO sphere (cx, cy, cz, sphere_col, radius) VALUES
-                                            (4, 3, -10, 0.0, 5),
-                                            (-5, 7, 12, 0.3, 7),
-                                            (12, -15, -3, 0.4, 8),
-                                            (-2, -3, 8, 1.0, 10)
+  sphere_col REAL NOT NULL, is_light BOOLEAN NOT NULL,
+  radius REAL NOT NULL, radius2 REAL);
+INSERT INTO sphere (cx, cy, cz, sphere_col, radius, is_light) VALUES
+                                            (4, 3, -10, 0.0, 5, 1),
+                                            (-5, 7, 12, 0.3, 7, 0),
+                                            (12, -15, -3, 0.4, 8, 0),
+                                            (-2, -3, 8, 1.0, 10, 0)
                                             ;
 UPDATE sphere SET radius2 = radius*radius WHERE radius2 IS NULL;
 
@@ -25,15 +26,16 @@ DROP VIEW IF EXISTS rays;
 CREATE VIEW rays AS
     WITH RECURSIVE xs AS (SELECT 0 AS u, 0.0 AS img_frac_x UNION ALL SELECT u+1, (u+1.0)/img.res_x FROM xs, img WHERE xs.u<img.res_x-1),
      ys AS (SELECT 0 AS v, 0.0 AS img_frac_y UNION ALL SELECT v+1, (v+1.0)/img.res_y FROM ys, img WHERE ys.v<img.res_y-1),
-     rays(img_x, img_y, depth, max_ray_depth, ray_col, x1, y1, z1, dir_x, dir_y, dir_z, x2, y2, z2, ray_len) AS
+     rays(img_x, img_y, depth, max_ray_depth, ray_col, x1, y1, z1, dir_x, dir_y, dir_z, x2, y2, z2, ray_len, hit_light) AS
          (SELECT xs.u, ys.v, 0, max_ray_depth, NULL, c.x, c.y, c.z,
                 SIN(-(fov_rad/2.0)+img_frac_x*fov_rad), SIN(-(fov_rad/2.0)+img_frac_y*fov_rad), 1.0,
                  c.x + SIN(-(fov_rad/2.0)+img_frac_x*fov_rad), c.y + SIN(-(fov_rad/2.0)+img_frac_y*fov_rad), z + 1.0,
-                 0.0
+                 0.0, 0
               FROM camera c, img, xs, ys
         UNION ALL
           SELECT img_x, img_y, depth+1, max_ray_depth, sphere_col, x1, y1, z1, dir_x, dir_y, dir_z, x2, y2, z2,
-                 SQRT((cx-x1)*(cx-x1) + (cy-y1)*(cy-y1) + (cz-z1)*(cz-z1)) -- distance to center. fixme should be distance to intersection
+                 SQRT((cx-x1)*(cx-x1) + (cy-y1)*(cy-y1) + (cz-z1)*(cz-z1)), -- distance to center. fixme should be distance to intersection
+                 s.is_light
            FROM rays r
            LEFT JOIN sphere s ON
                -- https://mathworld.wolfram.com/Point-LineDistance3-Dimensional.html
@@ -43,7 +45,7 @@ CREATE VIEW rays AS
                     ((cz-z1)*(cx-x2)-(cx-x1)*(cz-z2))*((cz-z1)*(cx-x2)-(cx-x1)*(cz-z2)) +
                     ((cx-x1)*(cy-y2)-(cy-y1)*(cx-x2))*((cx-x1)*(cy-y2)-(cy-y1)*(cx-x2))) /
                 (dir_x*dir_x + dir_y*dir_y + dir_z*dir_z))
-              WHERE depth<max_ray_depth)
+              WHERE depth<max_ray_depth AND 0=r.hit_light)
    SELECT *, ROW_NUMBER() OVER (PARTITION BY img_x, img_y, depth ORDER BY ray_len ASC) AS ray_len_idx FROM rays;
 
 DROP VIEW IF EXISTS do_render;
