@@ -48,10 +48,10 @@ CREATE VIEW rays AS
 
 DROP VIEW IF EXISTS do_render;
 CREATE VIEW do_render AS
- SELECT img_x, img_y, COALESCE(MAX(ray_col), 0.5+0.5*(dir_y/(SQRT(dir_x*dir_x + dir_y*dir_y + dir_z*dir_z)))) AS col FROM rays
-    WHERE ray_len_idx = 1
-    GROUP BY img_y, img_x
-    ORDER BY img_y, img_x;
+ SELECT A.img_x, A.img_y, COALESCE(MAX(A.ray_col), 0.5+0.5*(A.dir_y/(SQRT(A.dir_x*A.dir_x + A.dir_y*A.dir_y + A.dir_z*A.dir_z)))) AS col
+    FROM rays A LEFT JOIN rays B ON A.img_x=B.img_x AND A.img_y=B.img_y AND A.ray_len_idx=1 AND A.depth=B.depth-1
+    GROUP BY A.img_y, A.img_x
+    ORDER BY A.img_y, A.img_x;
 
 .output img.ppm
 
