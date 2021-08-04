@@ -18,7 +18,7 @@ INSERT INTO camera (x, y, z, rot_x, rot_y, rot_z, fov_rad) VALUES (0.0, 0.0, -40
 
 DROP TABLE IF EXISTS img;
 CREATE TABLE img (res_x INTEGER NOT NULL, res_y INTEGER NOT NULL);
-INSERT INTO img (res_x, res_y) VALUES (400, 400);
+INSERT INTO img (res_x, res_y) VALUES (350, 350);
 
 DROP VIEW IF EXISTS rays;
 CREATE VIEW rays AS
@@ -38,16 +38,17 @@ CREATE VIEW rays AS
                -- https://mathworld.wolfram.com/Point-LineDistance3-Dimensional.html
                -- d=len( circ_center-p1 X circ_center-p2) / len(dir_x, dir_y, dir_z)
              s.radius2 >
-                   (((cy-y1)*(cz-z2)-(cz-z1)*(cy-y2))*((cy-y1)*(cz-z2)-(cz-z1)*(cy-y2)) +
+                  ((((cy-y1)*(cz-z2)-(cz-z1)*(cy-y2))*((cy-y1)*(cz-z2)-(cz-z1)*(cy-y2)) +
                     ((cz-z1)*(cx-x2)-(cx-x1)*(cz-z2))*((cz-z1)*(cx-x2)-(cx-x1)*(cz-z2)) +
                     ((cx-x1)*(cy-y2)-(cy-y1)*(cx-x2))*((cx-x1)*(cy-y2)-(cy-y1)*(cx-x2))) /
-                (dir_x*dir_x + dir_y*dir_Y + dir_z*dir_z)
-              WHERE depth<3)
-   SELECT * FROM rays;
+                (dir_x*dir_x + dir_y*dir_y + dir_z*dir_z))
+              WHERE depth<1)
+   SELECT *, ROW_NUMBER() OVER (PARTITION BY img_x, img_y, depth ORDER BY ray_len ASC) AS ray_len_idx FROM rays;
 
 DROP VIEW IF EXISTS do_render;
 CREATE VIEW do_render AS
  SELECT img_x, img_y, COALESCE(MAX(ray_col), 0.5+0.5*(dir_y/(SQRT(dir_x*dir_x + dir_y*dir_y + dir_z*dir_z)))) AS col FROM rays
+    WHERE ray_len_idx = 1
     GROUP BY img_y, img_x
     ORDER BY img_y, img_x;
 
