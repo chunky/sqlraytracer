@@ -28,42 +28,50 @@ DROP VIEW IF EXISTS rays;
 CREATE VIEW rays AS
     WITH RECURSIVE xs AS (SELECT 0 AS u, 0.0 AS img_frac_x UNION ALL SELECT u+1, (u+1.0)/img.res_x FROM xs, img WHERE xs.u<img.res_x-1),
      ys AS (SELECT 0 AS v, 0.0 AS img_frac_y UNION ALL SELECT v+1, (v+1.0)/img.res_y FROM ys, img WHERE ys.v<img.res_y-1),
-     rays(img_x, img_y, depth, max_ray_depth, ray_col, x1, y1, z1, dir_x, dir_y, dir_z, x2, y2, z2, ray_len, hit_light) AS
+     rs(img_x, img_y, depth, max_ray_depth, ray_col, x1, y1, z1, x2, y2, z2,
+          dir_x, dir_y, dir_z, dir_lensquared, ray_len, hit_light, t) AS
         -- Send out initial set of rays from camera
          (SELECT xs.u, ys.v, 0, max_ray_depth, NULL, c.x, c.y, c.z,
-                SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x), SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y), 1.0,
                  c.x + SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x), c.y + SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y), z + 1.0,
-                 0.0, 0
+                 SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x), SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y), 1.0,
+                 SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x)*SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x)
+                        + SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y)*SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y)
+                        + 1.0,
+                 0.0, 0, 0
               FROM camera c, img, xs, ys
         UNION ALL
          -- Collide all rays with spheres
-          SELECT img_x, img_y, depth+1, max_ray_depth, sphere_col, x1, y1, z1, dir_x, dir_y, dir_z, x2, y2, z2,
+          SELECT img_x, img_y, depth+1, max_ray_depth, sphere_col, x1, y1, z1, x2, y2, z2, dir_x, dir_y, dir_z,
+                 dir_x*dir_x + dir_y*dir_y + dir_z*dir_z,
                  SQRT((cx-x1)*(cx-x1) + (cy-y1)*(cy-y1) + (cz-z1)*(cz-z1)), -- distance to center. fixme should be distance to intersection
-                 s.is_light
+                 s.is_light,
+                     -((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
+                       -SQRT(((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z) * ((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
+                      - dir_lensquared * ((x1-cx)*(x1-cx) + (y1-cy)*(y1-cy) + (z1-cz)*(z1-cz) - radius2)) / dir_lensquared
+
 
          -- double hit_sphere(const point3& center, double radius, const ray& r) {
          --     vec3 oc = r.origin() - center;
-         --            -- x1-cx, y1-cy, z1-cz
+         --            x1-cx, y1-cy, z1-cz
          --     auto a = dot(r.direction(), r.direction());
-         --            -- dir_x*dir_x + dir_y*dir_y + dir_z*dir_z
-         --     auto b = 2.0 * dot(oc, r.direction());
-         --            -- 2.0 * ((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
+         --            dir_lensquared
+         --     auto half_b = dot(oc, r.direction());
+         --            ((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
          --     auto c = dot(oc, oc) - radius*radius;
-         --            -- (x1-cx)*(x1-cx) + (y1-cy)*(y1-cy) + (z1-cz)*(z1-cz)
-         --     auto discriminant = b*b - 4*a*c;
-         --            -- (2.0 * ((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z))*(2.0 * ((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z))
-         --            --    - 4 * (dir_x*dir_x + dir_y*dir_y + dir_z*dir_z) * ((x1-cx)*(x1-cx) + (y1-cy)*(y1-cy) + (z1-cz)*(z1-cz))
+         --            (x1-cx)*(x1-cx) + (y1-cy)*(y1-cy) + (z1-cz)*(z1-cz) - radius2
+         --     auto discriminant = half_b*half_b - a*c;
+         --            ((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z) * ((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
+         --               - dir_lensquared * ((x1-cx)*(x1-cx) + (y1-cy)*(y1-cy) + (z1-cz)*(z1-cz) - radius2)
          --     if (discriminant < 0) {
          --         return -1.0;
          --     } else {
-         --         return (-b - sqrt(discriminant) ) / (2.0*a);
-         --            -- -(2.0 * ((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z))
-         --            --   - SQRT(2.0 * ((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z))*(2.0 * ((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z))
-         --            --    - 4 * (dir_x*dir_x + dir_y*dir_y + dir_z*dir_z) * ((x1-cx)*(x1-cx) + (y1-cy)*(y1-cy) + (z1-cz)*(z1-cz))) /
-        --            --    (2.0*(dir_x*dir_x + dir_y*dir_y + dir_z*dir_z))
+         --         return (-half_b - sqrt(discriminant) ) / a;
+         --            -((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
+         --            -SQRT(((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z) * ((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
+         --                 - dir_lensquared * ((x1-cx)*(x1-cx) + (y1-cy)*(y1-cy) + (z1-cz)*(z1-cz) - radius2)) / dir_lensquared
          --     }
          -- }
-           FROM rays r
+           FROM rs
            LEFT JOIN sphere s ON
                -- https://mathworld.wolfram.com/Point-LineDistance3-Dimensional.html
                -- d=len( circ_center-p1 X circ_center-p2) / len(dir_x, dir_y, dir_z)
@@ -73,8 +81,8 @@ CREATE VIEW rays AS
                     ((cz-z1)*(cx-x2)-(cx-x1)*(cz-z2))*((cz-z1)*(cx-x2)-(cx-x1)*(cz-z2)) +
                     ((cx-x1)*(cy-y2)-(cy-y1)*(cx-x2))*((cx-x1)*(cy-y2)-(cy-y1)*(cx-x2))) /
                 (dir_x*dir_x + dir_y*dir_y + dir_z*dir_z))
-              WHERE depth<max_ray_depth AND 0=r.hit_light)
-   SELECT *, ROW_NUMBER() OVER (PARTITION BY img_x, img_y, depth ORDER BY ray_len ASC) AS ray_len_idx FROM rays;
+              WHERE depth<max_ray_depth AND 0=hit_light)
+   SELECT *, ROW_NUMBER() OVER (PARTITION BY img_x, img_y, depth ORDER BY ray_len ASC) AS ray_len_idx FROM rs;
 
 DROP VIEW IF EXISTS do_render;
 CREATE VIEW do_render AS
@@ -83,8 +91,6 @@ CREATE VIEW do_render AS
     FROM rays A LEFT JOIN rays B ON A.img_x=B.img_x AND A.img_y=B.img_y AND A.ray_len_idx=1 AND A.depth=B.depth-1
     GROUP BY A.img_y, A.img_x
     ORDER BY A.img_y, A.img_x;
-
-.output img.ppm
 
 DROP VIEW IF EXISTS ppm;
 CREATE VIEW ppm AS
@@ -96,4 +102,3 @@ CREATE VIEW ppm AS
     SELECT CAST(col*mc AS INTEGER) || ' ' || CAST(col*mc AS INTEGER) || ' ' || CAST(col*mc AS INTEGER)
       FROM do_render, maxcol;
   ;
-SELECT * FROM ppm;
