@@ -18,7 +18,7 @@ CREATE TABLE camera (cameraid INTEGER PRIMARY KEY,
   fov_rad_x REAL NOT NULL, fov_rad_y REAL NOT NULL,
   max_ray_depth INTEGER);
 INSERT INTO camera (x, y, z, rot_x, rot_y, rot_z, fov_rad_x, fov_rad_y, max_ray_depth)
-  VALUES (0.0, 0.0, -40.0, 0.0, 0.0, 0.0, PI()/2.0, PI()/2.0, 2);
+  VALUES (0.0, 0.0, -40.0, 0.0, 0.0, 0.0, PI()/2.0, PI()/2.0, 4);
 
 DROP TABLE IF EXISTS img;
 CREATE TABLE img (res_x INTEGER NOT NULL, res_y INTEGER NOT NULL);
@@ -28,7 +28,8 @@ DROP VIEW IF EXISTS rays;
 CREATE VIEW rays AS
     WITH RECURSIVE xs AS (SELECT 0 AS u, 0.0 AS img_frac_x UNION ALL SELECT u+1, (u+1.0)/img.res_x FROM xs, img WHERE xs.u<img.res_x-1),
      ys AS (SELECT 0 AS v, 0.0 AS img_frac_y UNION ALL SELECT v+1, (v+1.0)/img.res_y FROM ys, img WHERE ys.v<img.res_y-1),
-     rs(img_x, img_y, depth, max_ray_depth, ray_col, x1, y1, z1, x2, y2, z2,
+     rs(img_x, img_y, depth, max_ray_depth, ray_col,
+          x1, y1, z1, x2, y2, z2, -- Two points on the ray
           dir_x, dir_y, dir_z, dir_lensquared, ray_len, hit_light, t) AS
         -- Send out initial set of rays from camera
          (SELECT xs.u, ys.v, 0, max_ray_depth, NULL, c.x, c.y, c.z,
@@ -41,8 +42,38 @@ CREATE VIEW rays AS
               FROM camera c, img, xs, ys
         UNION ALL
          -- Collide all rays with spheres
-          SELECT img_x, img_y, depth+1, max_ray_depth, sphere_col, x1, y1, z1, x2, y2, z2, dir_x, dir_y, dir_z,
-                 dir_x*dir_x + dir_y*dir_y + dir_z*dir_z,
+          SELECT img_x, img_y, depth+1, max_ray_depth, sphere_col,
+                 -- x1, y1, z1
+                 x1+dir_x*(-((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
+                       -SQRT(((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z) * ((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
+                      - dir_lensquared * ((x1-cx)*(x1-cx) + (y1-cy)*(y1-cy) + (z1-cz)*(z1-cz) - radius2)) / dir_lensquared),
+                 y1+dir_y*(-((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
+                       -SQRT(((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z) * ((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
+                      - dir_lensquared * ((x1-cx)*(x1-cx) + (y1-cy)*(y1-cy) + (z1-cz)*(z1-cz) - radius2)) / dir_lensquared),
+                 z1+dir_z*(-((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
+                       -SQRT(((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z) * ((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
+                      - dir_lensquared * ((x1-cx)*(x1-cx) + (y1-cy)*(y1-cy) + (z1-cz)*(z1-cz) - radius2)) / dir_lensquared),
+                 -- x2, y2, z2
+                 2*cx - x1 + dir_x + 3 * dir_x * (-((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
+                       -SQRT(((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z) * ((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
+                      - dir_lensquared * ((x1-cx)*(x1-cx) + (y1-cy)*(y1-cy) + (z1-cz)*(z1-cz) - radius2)) / dir_lensquared),
+                 2*cy - y1 + dir_y + 3 * dir_y * (-((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
+                       -SQRT(((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z) * ((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
+                      - dir_lensquared * ((x1-cx)*(x1-cx) + (y1-cy)*(y1-cy) + (z1-cz)*(z1-cz) - radius2)) / dir_lensquared),
+                 2*cz - z1 + dir_z + 3 * dir_z * (-((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
+                       -SQRT(((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z) * ((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
+                      - dir_lensquared * ((x1-cx)*(x1-cx) + (y1-cy)*(y1-cy) + (z1-cz)*(z1-cz) - radius2)) / dir_lensquared),
+                 -- dir_x, dir_y, dir_z
+                 -dir_x+2*(cx-x1+dir_x*(-((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
+                       -SQRT(((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z) * ((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
+                      - dir_lensquared * ((x1-cx)*(x1-cx) + (y1-cy)*(y1-cy) + (z1-cz)*(z1-cz) - radius2)) / dir_lensquared)),
+                 -dir_y+2*(cy-y1+dir_y*(-((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
+                       -SQRT(((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z) * ((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
+                      - dir_lensquared * ((x1-cx)*(x1-cx) + (y1-cy)*(y1-cy) + (z1-cz)*(z1-cz) - radius2)) / dir_lensquared)),
+                 -dir_z+2*(cz-z1+dir_z*(-((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
+                       -SQRT(((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z) * ((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
+                      - dir_lensquared * ((x1-cx)*(x1-cx) + (y1-cy)*(y1-cy) + (z1-cz)*(z1-cz) - radius2)) / dir_lensquared)),
+                 dir_lensquared,
                  SQRT((cx-x1)*(cx-x1) + (cy-y1)*(cy-y1) + (cz-z1)*(cz-z1)), -- distance to center. fixme should be distance to intersection
                  s.is_light,
                      -((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
@@ -72,7 +103,7 @@ CREATE VIEW rays AS
          --     }
          -- }
            FROM rs
-           LEFT JOIN sphere s ON
+           INNER JOIN sphere s ON
                -- https://mathworld.wolfram.com/Point-LineDistance3-Dimensional.html
                -- d=len( circ_center-p1 X circ_center-p2) / len(dir_x, dir_y, dir_z)
                -- This is "does this ray collide"
