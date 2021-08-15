@@ -10,6 +10,8 @@ INSERT INTO sphere (sphereid, cx, cy, cz, sphere_col_r, sphere_col_g, sphere_col
                                             (3, 12, -15, -3, 0.0, 0.9, 0.0, 8, CAST(0 AS BOOLEAN)),
                                             (4, -2, -3, 8, 0.0, 0.0, 1.0, 10, CAST(0 AS BOOLEAN)),
                                             (5, -8, -3, -15, 0.95, 0.95, 0.95, 2, CAST(0 AS BOOLEAN))
+--                                 (1, 0, 10, 0, 0.95, 0.95, 0.95, 10, CAST(0 AS BOOLEAN))
+--                                 (2, 0, -1000.5, 0, 0.95, 0.95, 0.95, 1000, CAST(0 AS BOOLEAN))
                                             ;
 UPDATE sphere SET radius2 = radius*radius WHERE radius2 IS NULL;
 
@@ -20,11 +22,11 @@ CREATE TABLE camera (cameraid INTEGER PRIMARY KEY,
   fov_rad_x DOUBLE PRECISION NOT NULL, fov_rad_y DOUBLE PRECISION NOT NULL,
   max_ray_depth INTEGER NOT NULL, samples_per_px INTEGER NOT NULL);
 INSERT INTO camera (cameraid, x, y, z, rot_x, rot_y, rot_z, fov_rad_x, fov_rad_y, max_ray_depth, samples_per_px)
-  VALUES (1, 0.0, 0.0, -80.0, 0.0, 0.0, 0.0, PI()/2.0, PI()/2.0, 1, 6);
+  VALUES (1.0, 0.0, 0.0, -120.0, 0.0, 0.0, 0.0, PI()/3.0, PI()/3.0, 4, 2);
 
 DROP TABLE IF EXISTS img CASCADE;
 CREATE TABLE img (res_x INTEGER NOT NULL, res_y INTEGER NOT NULL);
-    INSERT INTO img (res_x, res_y) VALUES (350, 350);
+    INSERT INTO img (res_x, res_y) VALUES (450, 450);
 
 
 -- Skipped bits:
@@ -47,8 +49,8 @@ CREATE VIEW rays AS
          (SELECT xs.u, ys.v, 0, max_ray_depth, samples_per_px, px_sample_n,
                 CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION),
                  c.x, c.y, c.z,
-                 SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) + 0.9 * (RANDOM()-0.5) * (fov_rad_x/res_x),
-                 SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + 0.9 * (RANDOM()-0.5) * (fov_rad_y/res_y),
+                 SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) + 0.5 * (RANDOM()-0.5) * (fov_rad_x/res_x),
+                 SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + 0.5 * (RANDOM()-0.5) * (fov_rad_y/res_y),
                  CAST(1.0 AS DOUBLE PRECISION),
                  SQRT(SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x)*SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) +
                       SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y)*SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + 1.0),
@@ -57,22 +59,17 @@ CREATE VIEW rays AS
         UNION ALL
          -- Collide all rays with spheres
           SELECT img_x, img_y, depth+1, max_ray_depth, samples_per_px, px_sample_n,
-                 CASE WHEN discrim>0 THEN sphere_col_r*0.5*(1+norm_x/norm_len) ELSE dir_y END,
-                 CASE WHEN discrim>0 THEN sphere_col_g*0.5*(1+norm_y/norm_len) ELSE dir_y END,
-                 CASE WHEN discrim>0 THEN sphere_col_b*0.5*(1+norm_z/norm_len) ELSE dir_y END,
+                 CASE WHEN discrim>0 THEN sphere_col_r*0.9*(1+norm_x/norm_len) ELSE 1.0-(dir_y/SQRT(dir_lensquared))+0.5*(dir_y/SQRT(dir_lensquared)) END,
+                 CASE WHEN discrim>0 THEN sphere_col_g*0.9*(1+norm_y/norm_len) ELSE 1.0-(dir_y/SQRT(dir_lensquared))+0.7*(dir_y/SQRT(dir_lensquared)) END,
+                 CASE WHEN discrim>0 THEN sphere_col_b*0.9*(1+norm_z/norm_len) ELSE 1.0-(dir_y/SQRT(dir_lensquared))+1.0*(dir_y/SQRT(dir_lensquared)) END,
                  -- x1, y1, z1
-                 x1+dir_x*t,
-                 y1+dir_y*t,
-                 z1+dir_z*t,
+                 hit_x, hit_y, hit_z,
                  -- dir_x, dir_y, dir_z
-                 -dir_x+2*(cx-x1+dir_x*t),
-                 -dir_y+2*(cy-y1+dir_y*t),
-                 -dir_z+2*(cz-z1+dir_z*t),
-                 dir_lensquared,
+                 norm_x/norm_len, norm_y/norm_len, norm_z/norm_len, CAST(1.0 AS DOUBLE PRECISION),
                  -- distance to center. fixme should be distance to intersection
-                 SQRT((cx-x1)*(cx-x1) + (cy-y1)*(cy-y1) + (cz-z1)*(cz-z1)),
-                 is_light, discrim<0, ROW_NUMBER() OVER (PARTITION BY img_x, img_y, depth+1, px_sample_n
-                                                          ORDER BY SQRT((cx-x1)*(cx-x1) + (cy-y1)*(cy-y1) + (cz-z1)*(cz-z1)))
+                 t * SQRT(dir_lensquared),
+                 is_light, discrim IS NULL, ROW_NUMBER() OVER (PARTITION BY img_x, img_y, depth+1, px_sample_n
+                                                          ORDER BY (cx-x1)*(cx-x1) + (cy-y1)*(cy-y1) + (cz-z1)*(cz-z1))
            FROM rs
            LEFT JOIN LATERAL
                (SELECT s.*, ((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z) * ((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
@@ -81,15 +78,16 @@ CREATE VIEW rays AS
                         -SQRT(ABS(((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z) * ((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
                             - dir_lensquared * ((x1-cx)*(x1-cx) + (y1-cy)*(y1-cy) + (z1-cz)*(z1-cz) - radius2)) / dir_lensquared)) t
                          FROM sphere s
-                       ) hit_sphere ON discrim>0
+                       ) hit_sphere ON discrim>0 AND t>0
            LEFT JOIN LATERAL
                (SELECT x1+dir_x*t AS hit_x, y1+dir_y*t AS hit_y, z1+dir_z*t AS hit_z,
                        x1+dir_x*t-cx AS norm_x, y1+dir_y*t-cy AS norm_y, z1+dir_z*t-cz AS norm_z,
                        SQRT((x1+dir_x*t-cx)*(x1+dir_x*t-cx)+(y1+dir_y*t-cy)*(y1+dir_y*t-cy)+(z1+dir_z*t-cz)*(z1+dir_z*t-cz)) AS norm_len
-               ) sphere_normal ON discrim>0
+               ) sphere_normal ON discrim>0 AND t>0
               WHERE depth<max_ray_depth AND NOT rs.hit_light AND NOT was_miss AND ray_len_idx=1)
    SELECT * FROM rs WHERE ray_len_idx=1;
 
+--SELECT * FROM rays WHERE img_x=
          -- double hit_sphere(const point3& center, double radius, const ray& r) {
          --     vec3 oc = r.origin() - center;
          --            x1-cx, y1-cy, z1-cz
@@ -115,10 +113,15 @@ CREATE VIEW rays AS
 DROP VIEW IF EXISTS do_render;
 CREATE VIEW do_render AS
  SELECT A.img_x, A.img_y,
-         SUM(A.ray_col_r * 1.0/(A.samples_per_px*A.depth)) col_r,
-         SUM(A.ray_col_g * 1.0/(A.samples_per_px*A.depth)) col_g,
-         SUM(A.ray_col_b * 1.0/(A.samples_per_px*A.depth)) col_b
+--          SUM(A.ray_col_r / (A.samples_per_px*POW(2, A.depth))) col_r,
+--          SUM(A.ray_col_g / (A.samples_per_px*POW(2, A.depth))) col_g,
+--          SUM(A.ray_col_b / (A.samples_per_px*POW(2, A.depth))) col_b
+         GREATEST(0.0, LEAST(SUM(A.ray_col_r/(POW(2, A.depth)*A.samples_per_px)), CAST(1.0 AS DOUBLE PRECISION))) col_r,
+         GREATEST(0.0, LEAST(SUM(A.ray_col_g/(POW(2, A.depth)*A.samples_per_px)), CAST(1.0 AS DOUBLE PRECISION))) col_g,
+         GREATEST(0.0, LEAST(SUM(A.ray_col_b/(POW(2, A.depth)*A.samples_per_px)), CAST(1.0 AS DOUBLE PRECISION))) col_b
+
     FROM rays A
+     WHERE A.ray_col_r IS NOT NULL
         --LEFT JOIN rays B ON A.img_x=B.img_x AND A.img_y=B.img_y AND A.ray_len_idx=1 AND A.depth=B.depth-1
     GROUP BY A.img_y, A.img_x
     ORDER BY A.img_y, A.img_x;
@@ -133,3 +136,5 @@ CREATE VIEW ppm AS
     SELECT CAST((mc+col_r*mc)/2 AS INTEGER) || ' ' || CAST((mc+col_g*mc)/2 AS INTEGER) || ' ' || CAST((mc+col_b*mc)/2 AS INTEGER)
       FROM do_render, maxcol;
   ;
+
+SELECT * FROM rays WHERE img_x=220 AND img_y=220;
