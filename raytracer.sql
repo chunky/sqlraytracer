@@ -4,7 +4,7 @@ CREATE TABLE sphere (sphereid INTEGER PRIMARY KEY,
   sphere_col DOUBLE PRECISION NOT NULL, is_light BOOLEAN NOT NULL,
   radius DOUBLE PRECISION NOT NULL, radius2 DOUBLE PRECISION);
 INSERT INTO sphere (sphereid, cx, cy, cz, sphere_col, radius, is_light) VALUES
-                                            (1, 4, 3, -10, 0.0, 5, CAST(1 AS BOOLEAN)),
+                                            (1, 4, 3, -10, 0.01, 5, CAST(1 AS BOOLEAN)),
                                             (2, -5, 7, 12, 0.3, 7, CAST(0 AS BOOLEAN)),
                                             (3, 12, -15, -3, 0.4, 8, CAST(0 AS BOOLEAN)),
                                             (4, -2, -3, 8, 1.0, 10, CAST(0 AS BOOLEAN))
@@ -18,7 +18,7 @@ CREATE TABLE camera (cameraid INTEGER PRIMARY KEY,
   fov_rad_x DOUBLE PRECISION NOT NULL, fov_rad_y DOUBLE PRECISION NOT NULL,
   max_ray_depth INTEGER NOT NULL);
 INSERT INTO camera (cameraid, x, y, z, rot_x, rot_y, rot_z, fov_rad_x, fov_rad_y, max_ray_depth)
-  VALUES (1, 0.0, 0.0, -40.0, 0.0, 0.0, 0.0, PI()/2.0, PI()/2.0, 4);
+  VALUES (1, 0.0, 0.0, -80.0, 0.0, 0.0, 0.0, PI()/2.0, PI()/2.0, 1);
 
 DROP TABLE IF EXISTS img CASCADE;
 CREATE TABLE img (res_x INTEGER NOT NULL, res_y INTEGER NOT NULL);
@@ -33,20 +33,20 @@ CREATE VIEW rays AS
           x1, y1, z1,
           dir_x, dir_y, dir_z,
           dir_lensquared,
-          ray_len, hit_light) AS
+          ray_len, hit_light, was_miss) AS
         -- Send out initial set of rays from camera
          (SELECT xs.u, ys.v, 0, max_ray_depth, CAST(NULL AS DOUBLE PRECISION),
                  c.x, c.y, c.z,
                  SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x), SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y), CAST(1.0 AS DOUBLE PRECISION),
                  SQRT(SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x)*SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) +
                       SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y)*SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + 1.0),
-                 CAST(1.0 AS DOUBLE PRECISION), CAST(0 AS BOOLEAN)
+                 CAST(1.0 AS DOUBLE PRECISION), CAST(0 AS BOOLEAN), CAST(0 AS BOOLEAN)
               FROM camera c, img, xs, ys
         UNION ALL
          -- Collide all rays with spheres
           SELECT img_x, img_y, depth+1, max_ray_depth,
                  CASE WHEN discrim>0
-                     THEN 0.5*(norm_x+1)
+                     THEN sphere_col*0.5*(1+norm_x/norm_len)
                      ELSE dir_y END,
                  -- x1, y1, z1
                  x1+dir_x*t,
@@ -59,7 +59,7 @@ CREATE VIEW rays AS
                  dir_lensquared,
                  -- distance to center. fixme should be distance to intersection
                  SQRT((cx-x1)*(cx-x1) + (cy-y1)*(cy-y1) + (cz-z1)*(cz-z1)),
-                 is_light
+                 is_light, discrim<0
            FROM rs
            LEFT JOIN LATERAL
                (SELECT s.*, ((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z) * ((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
@@ -74,7 +74,7 @@ CREATE VIEW rays AS
                        x1+dir_x*t-cx AS norm_x, y1+dir_y*t-cy AS norm_y, z1+dir_z*t-cz AS norm_z,
                        SQRT((x1+dir_x*t-cx)*(x1+dir_x*t-cx)+(y1+dir_y*t-cy)*(y1+dir_y*t-cy)+(z1+dir_z*t-cz)*(z1+dir_z*t-cz)) AS norm_len
                ) sphere_normal ON discrim>0
-              WHERE depth<max_ray_depth AND NOT rs.hit_light)
+              WHERE depth<max_ray_depth AND NOT rs.hit_light AND NOT was_miss)
    SELECT *, ROW_NUMBER() OVER (PARTITION BY img_x, img_y, depth ORDER BY ray_len ASC) AS ray_len_idx FROM rs;
 
          -- double hit_sphere(const point3& center, double radius, const ray& r) {
