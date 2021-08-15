@@ -27,6 +27,11 @@ CREATE TABLE img (res_x INTEGER NOT NULL, res_y INTEGER NOT NULL);
     INSERT INTO img (res_x, res_y) VALUES (350, 350);
 
 
+-- Skipped bits:
+--   "Front faces vs back faces"
+--   "antialiasing"
+
+
 DROP VIEW IF EXISTS rays CASCADE;
 CREATE VIEW rays AS
     WITH RECURSIVE xs AS (SELECT 0 AS u, 0.0 AS img_frac_x UNION ALL SELECT u+1, (u+1.0)/img.res_x FROM xs, img WHERE xs.u<img.res_x-1),
@@ -36,7 +41,7 @@ CREATE VIEW rays AS
           x1, y1, z1,
           dir_x, dir_y, dir_z,
           dir_lensquared,
-          ray_len, hit_light, was_miss) AS
+          ray_len, hit_light, was_miss, ray_len_idx) AS
         -- Send out initial set of rays from camera
          (SELECT xs.u, ys.v, 0, max_ray_depth,
                 CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION),
@@ -44,7 +49,7 @@ CREATE VIEW rays AS
                  SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x), SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y), CAST(1.0 AS DOUBLE PRECISION),
                  SQRT(SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x)*SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) +
                       SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y)*SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + 1.0),
-                 CAST(1.0 AS DOUBLE PRECISION), CAST(0 AS BOOLEAN), CAST(0 AS BOOLEAN)
+                 CAST(1.0 AS DOUBLE PRECISION), CAST(0 AS BOOLEAN), CAST(0 AS BOOLEAN), CAST(1 AS BIGINT)
               FROM camera c, img, xs, ys
         UNION ALL
          -- Collide all rays with spheres
@@ -63,7 +68,7 @@ CREATE VIEW rays AS
                  dir_lensquared,
                  -- distance to center. fixme should be distance to intersection
                  SQRT((cx-x1)*(cx-x1) + (cy-y1)*(cy-y1) + (cz-z1)*(cz-z1)),
-                 is_light, discrim<0
+                 is_light, discrim<0, ROW_NUMBER() OVER (PARTITION BY img_x, img_y, depth+1 ORDER BY SQRT((cx-x1)*(cx-x1) + (cy-y1)*(cy-y1) + (cz-z1)*(cz-z1)))
            FROM rs
            LEFT JOIN LATERAL
                (SELECT s.*, ((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z) * ((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
@@ -78,8 +83,8 @@ CREATE VIEW rays AS
                        x1+dir_x*t-cx AS norm_x, y1+dir_y*t-cy AS norm_y, z1+dir_z*t-cz AS norm_z,
                        SQRT((x1+dir_x*t-cx)*(x1+dir_x*t-cx)+(y1+dir_y*t-cy)*(y1+dir_y*t-cy)+(z1+dir_z*t-cz)*(z1+dir_z*t-cz)) AS norm_len
                ) sphere_normal ON discrim>0
-              WHERE depth<max_ray_depth AND NOT rs.hit_light AND NOT was_miss)
-   SELECT *, ROW_NUMBER() OVER (PARTITION BY img_x, img_y, depth ORDER BY ray_len ASC) AS ray_len_idx FROM rs;
+              WHERE depth<max_ray_depth AND NOT rs.hit_light AND NOT was_miss AND ray_len_idx=1)
+   SELECT * FROM rs WHERE ray_len_idx=1;
 
          -- double hit_sphere(const point3& center, double radius, const ray& r) {
          --     vec3 oc = r.origin() - center;
