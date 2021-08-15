@@ -1,13 +1,15 @@
 DROP TABLE IF EXISTS sphere CASCADE;
 CREATE TABLE sphere (sphereid INTEGER PRIMARY KEY,
   cx DOUBLE PRECISION NOT NULL, cy DOUBLE PRECISION NOT NULL, cz DOUBLE PRECISION NOT NULL,
-  sphere_col DOUBLE PRECISION NOT NULL, is_light BOOLEAN NOT NULL,
+  sphere_col_r DOUBLE PRECISION NOT NULL, sphere_col_g DOUBLE PRECISION NOT NULL, sphere_col_b DOUBLE PRECISION NOT NULL,
+  is_light BOOLEAN NOT NULL,
   radius DOUBLE PRECISION NOT NULL, radius2 DOUBLE PRECISION);
-INSERT INTO sphere (sphereid, cx, cy, cz, sphere_col, radius, is_light) VALUES
-                                            (1, 4, 3, -10, 0.01, 5, CAST(1 AS BOOLEAN)),
-                                            (2, -5, 7, 12, 0.3, 7, CAST(0 AS BOOLEAN)),
-                                            (3, 12, -15, -3, 0.4, 8, CAST(0 AS BOOLEAN)),
-                                            (4, -2, -3, 8, 1.0, 10, CAST(0 AS BOOLEAN))
+INSERT INTO sphere (sphereid, cx, cy, cz, sphere_col_r, sphere_col_g, sphere_col_b, radius, is_light) VALUES
+                                            (1, 4, 3, -10, 0.01, 0.01, 0.01, 5, CAST(1 AS BOOLEAN)),
+                                            (2, -5, 7, 12, 0.8, 0.0, 0.0, 7, CAST(0 AS BOOLEAN)),
+                                            (3, 12, -15, -3, 0.0, 0.9, 0.0, 8, CAST(0 AS BOOLEAN)),
+                                            (4, -2, -3, 8, 0.0, 0.0, 1.0, 10, CAST(0 AS BOOLEAN)),
+                                            (5, -8, -3, 8, 0.95, 0.95, 0.95, 2, CAST(0 AS BOOLEAN))
                                             ;
 UPDATE sphere SET radius2 = radius*radius WHERE radius2 IS NULL;
 
@@ -29,13 +31,15 @@ DROP VIEW IF EXISTS rays CASCADE;
 CREATE VIEW rays AS
     WITH RECURSIVE xs AS (SELECT 0 AS u, 0.0 AS img_frac_x UNION ALL SELECT u+1, (u+1.0)/img.res_x FROM xs, img WHERE xs.u<img.res_x-1),
      ys AS (SELECT 0 AS v, 0.0 AS img_frac_y UNION ALL SELECT v+1, (v+1.0)/img.res_y FROM ys, img WHERE ys.v<img.res_y-1),
-     rs(img_x, img_y, depth, max_ray_depth, ray_col,
+     rs(img_x, img_y, depth, max_ray_depth,
+          ray_col_r, ray_col_g, ray_col_b,
           x1, y1, z1,
           dir_x, dir_y, dir_z,
           dir_lensquared,
           ray_len, hit_light, was_miss) AS
         -- Send out initial set of rays from camera
-         (SELECT xs.u, ys.v, 0, max_ray_depth, CAST(NULL AS DOUBLE PRECISION),
+         (SELECT xs.u, ys.v, 0, max_ray_depth,
+                CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION),
                  c.x, c.y, c.z,
                  SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x), SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y), CAST(1.0 AS DOUBLE PRECISION),
                  SQRT(SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x)*SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) +
@@ -45,9 +49,9 @@ CREATE VIEW rays AS
         UNION ALL
          -- Collide all rays with spheres
           SELECT img_x, img_y, depth+1, max_ray_depth,
-                 CASE WHEN discrim>0
-                     THEN sphere_col*0.5*(1+norm_x/norm_len)
-                     ELSE dir_y END,
+                 CASE WHEN discrim>0 THEN sphere_col_r*0.5*(1+norm_x/norm_len) ELSE dir_y END,
+                 CASE WHEN discrim>0 THEN sphere_col_g*0.5*(1+norm_y/norm_len) ELSE dir_y END,
+                 CASE WHEN discrim>0 THEN sphere_col_b*0.5*(1+norm_z/norm_len) ELSE dir_y END,
                  -- x1, y1, z1
                  x1+dir_x*t,
                  y1+dir_y*t,
@@ -101,7 +105,8 @@ CREATE VIEW rays AS
 
 DROP VIEW IF EXISTS do_render;
 CREATE VIEW do_render AS
- SELECT A.img_x, A.img_y, COALESCE(MAX(A.ray_col * 1.0/A.depth)) col
+ SELECT A.img_x, A.img_y,
+         COALESCE(MAX(A.ray_col_r * 1.0/A.depth)) col_r, COALESCE(MAX(A.ray_col_g * 1.0/A.depth)) col_g, COALESCE(MAX(A.ray_col_b * 1.0/A.depth)) col_b
     FROM rays A LEFT JOIN rays B ON A.img_x=B.img_x AND A.img_y=B.img_y AND A.ray_len_idx=1 AND A.depth=B.depth-1
     GROUP BY A.img_y, A.img_x
     ORDER BY A.img_y, A.img_x;
@@ -113,6 +118,6 @@ CREATE VIEW ppm AS
   UNION ALL
     SELECT res_x || ' ' || res_y || ' ' || mc FROM img, maxcol
   UNION ALL
-    SELECT CAST((mc+col*mc)/2 AS INTEGER) || ' ' || CAST((mc+col*mc)/2 AS INTEGER) || ' ' || CAST((mc+col*mc)/2 AS INTEGER)
+    SELECT CAST((mc+col_r*mc)/2 AS INTEGER) || ' ' || CAST((mc+col_g*mc)/2 AS INTEGER) || ' ' || CAST((mc+col_b*mc)/2 AS INTEGER)
       FROM do_render, maxcol;
   ;
