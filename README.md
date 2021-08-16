@@ -4,14 +4,19 @@ Everyone writes a raytracer sooner or later. This is mine.
 
 ## Database
 
-Uses SQLite version >= 3.35, which must be compiled with 
-```-DSQLITE_ENABLE_MATH_FUNCTIONS```
+This is implemented in pure SQL. It doesn't do anything like CREATE
+FUNCTION or other nonportable designs.
 
-On ubuntu, if you download the latest SQLite amalgam:
-```shell
-gcc -o sqlite3 -DSQLITE_ENABLE_MATH_FUNCTIONS shell.c sqlite3.c \
-    -ldl -lpthread  -lm
-```
+At the same time, there are some not-100%-common features of SQL that
+it needs:
+
+* JOIN LATERAL
+* PARTITION BY inside of a RECURSIVE CTE
+* Math functions like sin()
+
+So although I started developing this in SQLite, I ended up leaning
+on PostgreSQL. As I write this, it works in postgres and hasn't been
+tested in anything else.
 
 ## References
 
