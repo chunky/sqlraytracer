@@ -112,7 +112,7 @@ CREATE VIEW rays AS
 
 DROP VIEW IF EXISTS do_render;
 CREATE VIEW do_render AS
- SELECT A.img_x, A.img_y,
+ SELECT A.img_x, -A.img_y,
 --          SUM(A.ray_col_r / (A.samples_per_px*POW(2, A.depth))) col_r,
 --          SUM(A.ray_col_g / (A.samples_per_px*POW(2, A.depth))) col_g,
 --          SUM(A.ray_col_b / (A.samples_per_px*POW(2, A.depth))) col_b
@@ -123,8 +123,8 @@ CREATE VIEW do_render AS
     FROM rays A
      WHERE A.ray_col_r IS NOT NULL
         --LEFT JOIN rays B ON A.img_x=B.img_x AND A.img_y=B.img_y AND A.ray_len_idx=1 AND A.depth=B.depth-1
-    GROUP BY A.img_y, A.img_x
-    ORDER BY A.img_y, A.img_x;
+    GROUP BY -A.img_y, A.img_x
+    ORDER BY -A.img_y, A.img_x;
 
 DROP VIEW IF EXISTS ppm;
 CREATE VIEW ppm AS
