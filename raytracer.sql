@@ -5,13 +5,13 @@ CREATE TABLE sphere (sphereid INTEGER PRIMARY KEY,
   is_light BOOLEAN NOT NULL,
   radius DOUBLE PRECISION NOT NULL, radius2 DOUBLE PRECISION);
 INSERT INTO sphere (sphereid, cx, cy, cz, sphere_col_r, sphere_col_g, sphere_col_b, radius, is_light) VALUES
-                                            (1, 4, 3, -10, 0.01, 0.01, 0.01, 5, CAST(1 AS BOOLEAN)),
+                                            (1, 9, 9, -10, 0.01, 0.01, 0.01, 5, CAST(0 AS BOOLEAN)),
                                             (2, -5, 7, 12, 0.8, 0.0, 0.0, 7, CAST(0 AS BOOLEAN)),
-                                            (3, 12, -15, -3, 0.0, 0.9, 0.0, 8, CAST(0 AS BOOLEAN)),
+                                            (3, 15, -15, -1, 0.0, 0.9, 0.0, 4, CAST(1 AS BOOLEAN)),
                                             (4, -2, -3, 8, 0.0, 0.0, 1.0, 10, CAST(0 AS BOOLEAN)),
-                                            (5, -8, -3, -15, 0.95, 0.95, 0.95, 2, CAST(0 AS BOOLEAN))
+                                            (5, -15, -3, -15, 1.0, 1.0, 1.0, 2, CAST(0 AS BOOLEAN))
 --                                 (1, 0, 10, 0, 0.95, 0.95, 0.95, 10, CAST(0 AS BOOLEAN))
---                                 (2, 0, -1000.5, 0, 0.95, 0.95, 0.95, 1000, CAST(0 AS BOOLEAN))
+--                                 (2, 0, -1000.5, 0, 0.95, 0.95, 0.95, 1000, CAST(1 AS BOOLEAN))
                                             ;
 UPDATE sphere SET radius2 = radius*radius WHERE radius2 IS NULL;
 
@@ -44,9 +44,9 @@ CREATE VIEW rays AS
           x1, y1, z1,
           dir_x, dir_y, dir_z,
           dir_lensquared,
-          ray_len, hit_light, was_miss, ray_len_idx) AS
+          ray_len, hit_light, stop_tracing, ray_len_idx) AS
         -- Send out initial set of rays from camera
-         (SELECT xs.u, ys.v, 0, max_ray_depth, samples_per_px, px_sample_n,
+         (SELECT xs.u, ys.v, -1, max_ray_depth, samples_per_px, px_sample_n,
                 CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION),
                  c.x, c.y, c.z,
                  SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) + 0.5 * (RANDOM()-0.5) * (fov_rad_x/res_x),
@@ -59,9 +59,12 @@ CREATE VIEW rays AS
         UNION ALL
          -- Collide all rays with spheres
           SELECT img_x, img_y, depth+1, max_ray_depth, samples_per_px, px_sample_n,
-                 CASE WHEN discrim>0 THEN sphere_col_r*0.9*(1+norm_x/norm_len) ELSE 1.0-(dir_y/SQRT(dir_lensquared))+0.5*(dir_y/SQRT(dir_lensquared)) END,
-                 CASE WHEN discrim>0 THEN sphere_col_g*0.9*(1+norm_y/norm_len) ELSE 1.0-(dir_y/SQRT(dir_lensquared))+0.7*(dir_y/SQRT(dir_lensquared)) END,
-                 CASE WHEN discrim>0 THEN sphere_col_b*0.9*(1+norm_z/norm_len) ELSE 1.0-(dir_y/SQRT(dir_lensquared))+1.0*(dir_y/SQRT(dir_lensquared)) END,
+                 CASE WHEN discrim>0 THEN (CASE WHEN is_light THEN sphere_col_r ELSE sphere_col_r*0.9*(1+norm_x/norm_len) END)
+                     ELSE 1.0-(dir_y/SQRT(dir_lensquared))+0.5*(dir_y/SQRT(dir_lensquared)) END,
+                 CASE WHEN discrim>0 THEN (CASE WHEN is_light THEN sphere_col_g ELSE sphere_col_g*0.9*(1+norm_y/norm_len) END)
+                     ELSE 1.0-(dir_y/SQRT(dir_lensquared))+0.7*(dir_y/SQRT(dir_lensquared)) END,
+                 CASE WHEN discrim>0 THEN (CASE WHEN is_light THEN sphere_col_b ELSE sphere_col_b*0.9*(1+norm_z/norm_len) END)
+                     ELSE 1.0-(dir_y/SQRT(dir_lensquared))+1.0*(dir_y/SQRT(dir_lensquared)) END,
                  -- x1, y1, z1
                  hit_x, hit_y, hit_z,
                  -- dir_x, dir_y, dir_z
@@ -84,7 +87,7 @@ CREATE VIEW rays AS
                        x1+dir_x*t-cx AS norm_x, y1+dir_y*t-cy AS norm_y, z1+dir_z*t-cz AS norm_z,
                        SQRT((x1+dir_x*t-cx)*(x1+dir_x*t-cx)+(y1+dir_y*t-cy)*(y1+dir_y*t-cy)+(z1+dir_z*t-cz)*(z1+dir_z*t-cz)) AS norm_len
                ) sphere_normal ON discrim>0 AND t>0
-              WHERE depth<max_ray_depth AND NOT rs.hit_light AND NOT was_miss AND ray_len_idx=1)
+              WHERE depth<max_ray_depth AND NOT rs.hit_light AND NOT stop_tracing AND ray_len_idx=1)
    SELECT * FROM rs WHERE ray_len_idx=1;
 
 --SELECT * FROM rays WHERE img_x=
@@ -137,4 +140,4 @@ CREATE VIEW ppm AS
       FROM do_render, maxcol;
   ;
 
-SELECT * FROM rays WHERE img_x=220 AND img_y=220;
+SELECT * FROM rays WHERE img_x=2 AND img_y=2;
