@@ -1,18 +1,27 @@
+DROP TABLE IF EXISTS material CASCADE;
+CREATE TABLE material (materialid SERIAL PRIMARY KEY, name TEXT,
+  mat_col_r DOUBLE PRECISION NOT NULL, mat_col_g DOUBLE PRECISION NOT NULL, mat_col_b DOUBLE PRECISION NOT NULL,
+  is_light BOOLEAN NOT NULL, is_metal BOOLEAN NOT NULL);
+INSERT INTO material (name, mat_col_r, mat_col_g, mat_col_b, is_light, is_metal) VALUES
+    ('dark', 0.1, 0.1, 0.1, FALSE, TRUE),
+    ('red', 0.95, 0.0, 0.0, FALSE, TRUE),
+    ('green', 0.0, 0.95, 0.0, FALSE, TRUE),
+    ('blue', 0.0, 0.0, 0.95, FALSE, TRUE),
+    ('bright', 1.0, 1.0, 1.0, FALSE, TRUE)
+;
+
 DROP TABLE IF EXISTS sphere CASCADE;
-CREATE TABLE sphere (sphereid INTEGER PRIMARY KEY,
+CREATE TABLE sphere (sphereid SERIAL,
   cx DOUBLE PRECISION NOT NULL, cy DOUBLE PRECISION NOT NULL, cz DOUBLE PRECISION NOT NULL,
-  sphere_col_r DOUBLE PRECISION NOT NULL, sphere_col_g DOUBLE PRECISION NOT NULL, sphere_col_b DOUBLE PRECISION NOT NULL,
-  is_light BOOLEAN NOT NULL,
-  radius DOUBLE PRECISION NOT NULL, radius2 DOUBLE PRECISION);
-INSERT INTO sphere (sphereid, cx, cy, cz, sphere_col_r, sphere_col_g, sphere_col_b, radius, is_light) VALUES
-                                            (1, 9, 9, -10, 0.01, 0.01, 0.01, 5, CAST(0 AS BOOLEAN)),
-                                            (2, -5, 7, 12, 0.8, 0.0, 0.0, 7, CAST(0 AS BOOLEAN)),
-                                            (3, 15, -15, -1, 0.0, 0.9, 0.0, 4, CAST(1 AS BOOLEAN)),
-                                            (4, -2, -3, 8, 0.0, 0.0, 1.0, 10, CAST(0 AS BOOLEAN)),
-                                            (5, -15, -3, -15, 1.0, 1.0, 1.0, 2, CAST(0 AS BOOLEAN))
---                                 (1, 0, 10, 0, 0.95, 0.95, 0.95, 10, CAST(0 AS BOOLEAN))
---                                 (2, 0, -1000.5, 0, 0.95, 0.95, 0.95, 1000, CAST(1 AS BOOLEAN))
-                                            ;
+  radius DOUBLE PRECISION NOT NULL, radius2 DOUBLE PRECISION, materialid INTEGER NOT NULL REFERENCES material(materialid));
+INSERT INTO sphere (cx, cy, cz, radius, materialid) VALUES
+    (9, 9, -10, 5, (SELECT materialid FROM material WHERE name='dark')),
+    (-5, 7, 12, 7, (SELECT materialid FROM material WHERE name='red')),
+    (15, -15, -1, 4, (SELECT materialid FROM material WHERE name='green')),
+    (-2, -3, 8, 10, (SELECT materialid FROM material WHERE name='blue')),
+    (-15, -3, -15, 2, (SELECT materialid FROM material WHERE name='bright'))
+;
+;
 UPDATE sphere SET radius2 = radius*radius WHERE radius2 IS NULL;
 
 DROP TABLE IF EXISTS camera CASCADE;
@@ -22,11 +31,11 @@ CREATE TABLE camera (cameraid INTEGER PRIMARY KEY,
   fov_rad_x DOUBLE PRECISION NOT NULL, fov_rad_y DOUBLE PRECISION NOT NULL,
   max_ray_depth INTEGER NOT NULL, samples_per_px INTEGER NOT NULL);
 INSERT INTO camera (cameraid, x, y, z, rot_x, rot_y, rot_z, fov_rad_x, fov_rad_y, max_ray_depth, samples_per_px)
-  VALUES (1.0, 0.0, 0.0, -120.0, 0.0, 0.0, 0.0, PI()/3.0, PI()/3.0, 4, 2);
+  VALUES (1.0, 0.0, 0.0, -120.0, 0.0, 0.0, 0.0, PI()/2.0, PI()/2.0, 4, 2);
 
 DROP TABLE IF EXISTS img CASCADE;
 CREATE TABLE img (res_x INTEGER NOT NULL, res_y INTEGER NOT NULL, gamma DOUBLE PRECISION);
-    INSERT INTO img (res_x, res_y, gamma) VALUES (450, 450, 1.9);
+    INSERT INTO img (res_x, res_y, gamma) VALUES (650, 650, 1.5);
 
 
 -- Skipped bits:
@@ -44,9 +53,9 @@ CREATE VIEW rays AS
           x1, y1, z1,
           dir_x, dir_y, dir_z,
           dir_lensquared,
-          ray_len, hit_light, stop_tracing, ray_len_idx) AS
+          ray_len, stop_tracing, ray_len_idx) AS
         -- Send out initial set of rays from camera
-         (SELECT xs.u, ys.v, 0, max_ray_depth, samples_per_px, px_sample_n, 2.0,
+         (SELECT xs.u, ys.v, -1, max_ray_depth, samples_per_px, px_sample_n, 2.0,
                 CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION),
                  c.x, c.y, c.z,
                  SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) + 0.5 * (RANDOM()-0.5) * (fov_rad_x/res_x),
@@ -54,16 +63,16 @@ CREATE VIEW rays AS
                  CAST(1.0 AS DOUBLE PRECISION),
                  SQRT(SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x)*SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) +
                       SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y)*SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + 1.0),
-                 CAST(1.0 AS DOUBLE PRECISION), CAST(0 AS BOOLEAN), CAST(0 AS BOOLEAN), CAST(1 AS BIGINT)
+                 CAST(1.0 AS DOUBLE PRECISION), CAST(0 AS BOOLEAN), CAST(1 AS BIGINT)
               FROM camera c, img, xs, ys, px_sample_n
         UNION ALL
          -- Collide all rays with spheres
           SELECT img_x, img_y, depth+1, max_ray_depth, samples_per_px, px_sample_n, 0.5*color_mult,
-                 CASE WHEN discrim>0 THEN (CASE WHEN is_light THEN sphere_col_r ELSE sphere_col_r*0.9*(1+norm_x/norm_len) END)
-                     ELSE 1.0-(0.5*((dir_y/SQRT(dir_lensquared)+1.0)))+0.5*(0.5*((dir_y/SQRT(dir_lensquared)+1.0))) END,
-                 CASE WHEN discrim>0 THEN (CASE WHEN is_light THEN sphere_col_g ELSE sphere_col_g*0.9*(1+norm_y/norm_len) END)
-                     ELSE 1.0-(0.5*((dir_y/SQRT(dir_lensquared)+1.0)))+0.7*(0.5*((dir_y/SQRT(dir_lensquared)+1.0))) END,
-                 CASE WHEN discrim>0 THEN (CASE WHEN is_light THEN sphere_col_b ELSE sphere_col_b*0.9*(1+norm_z/norm_len) END)
+                 CASE WHEN discrim>0 THEN (CASE WHEN is_light THEN mat_col_r ELSE mat_col_r*(1+norm_x/norm_len) END)
+                     ELSE 1.0-(0.5*((dir_y/SQRT(dir_lensquared)+1.0)))+0.2*(0.5*((dir_y/SQRT(dir_lensquared)+1.0))) END,
+                 CASE WHEN discrim>0 THEN (CASE WHEN is_light THEN mat_col_g ELSE mat_col_g*(1+norm_y/norm_len) END)
+                     ELSE 1.0-(0.5*((dir_y/SQRT(dir_lensquared)+1.0)))+0.3*(0.5*((dir_y/SQRT(dir_lensquared)+1.0))) END,
+                 CASE WHEN discrim>0 THEN (CASE WHEN is_light THEN mat_col_b ELSE mat_col_b*(1+norm_z/norm_len) END)
                      ELSE 1.0-(0.5*((dir_y/SQRT(dir_lensquared)+1.0)))+1.0*(0.5*((dir_y/SQRT(dir_lensquared)+1.0))) END,
                  -- x1, y1, z1
                  hit_x, hit_y, hit_z,
@@ -71,7 +80,7 @@ CREATE VIEW rays AS
                  norm_x/norm_len, norm_y/norm_len, norm_z/norm_len, CAST(1.0 AS DOUBLE PRECISION),
                  -- distance to center. fixme should be distance to intersection
                  t * SQRT(dir_lensquared),
-                 is_light, discrim IS NULL, ROW_NUMBER() OVER (PARTITION BY img_x, img_y, depth+1, px_sample_n
+                 discrim IS NULL OR is_light, ROW_NUMBER() OVER (PARTITION BY img_x, img_y, depth+1, px_sample_n
                                                           ORDER BY (cx-x1)*(cx-x1) + (cy-y1)*(cy-y1) + (cz-z1)*(cz-z1))
            FROM rs
            LEFT JOIN LATERAL
@@ -87,7 +96,8 @@ CREATE VIEW rays AS
                        x1+dir_x*t-cx AS norm_x, y1+dir_y*t-cy AS norm_y, z1+dir_z*t-cz AS norm_z,
                        SQRT((x1+dir_x*t-cx)*(x1+dir_x*t-cx)+(y1+dir_y*t-cy)*(y1+dir_y*t-cy)+(z1+dir_z*t-cz)*(z1+dir_z*t-cz)) AS norm_len
                ) sphere_normal ON discrim>0 AND t>0
-              WHERE depth<max_ray_depth AND NOT rs.hit_light AND NOT stop_tracing AND ray_len_idx=1)
+           LEFT JOIN material ON material.materialid=hit_sphere.materialid
+              WHERE depth<max_ray_depth AND NOT stop_tracing AND ray_len_idx=1)
    SELECT * FROM rs WHERE ray_len_idx=1;
 
 --SELECT * FROM rays WHERE img_x=
@@ -119,9 +129,9 @@ CREATE VIEW do_render AS
 --          SUM(A.ray_col_r / (A.samples_per_px*POW(2, A.depth))) col_r,
 --          SUM(A.ray_col_g / (A.samples_per_px*POW(2, A.depth))) col_g,
 --          SUM(A.ray_col_b / (A.samples_per_px*POW(2, A.depth))) col_b
-         GREATEST(0.0, LEAST(SUM(POW(A.color_mult * A.ray_col_r/A.samples_per_px, gamma)), CAST(1.0 AS DOUBLE PRECISION))) col_r,
-         GREATEST(0.0, LEAST(SUM(POW(A.color_mult * A.ray_col_g/A.samples_per_px, gamma)), CAST(1.0 AS DOUBLE PRECISION))) col_g,
-         GREATEST(0.0, LEAST(SUM(POW(A.color_mult * A.ray_col_b/A.samples_per_px, gamma)), CAST(1.0 AS DOUBLE PRECISION))) col_b
+         GREATEST(0.0, LEAST(1.0, SUM(POW(A.color_mult * A.ray_col_r/A.samples_per_px, gamma)))) col_r,
+         GREATEST(0.0, LEAST(1.0, SUM(POW(A.color_mult * A.ray_col_g/A.samples_per_px, gamma)))) col_g,
+         GREATEST(0.0, LEAST(1.0, SUM(POW(A.color_mult * A.ray_col_b/A.samples_per_px, gamma)))) col_b
 
     FROM rays A, img
      WHERE A.ray_col_r IS NOT NULL
@@ -140,4 +150,4 @@ CREATE VIEW ppm AS
       FROM do_render, maxcol;
   ;
 
--- SELECT * FROM rays WHERE img_x=2 AND img_y=2;
+SELECT * FROM rays WHERE img_x=2 AND img_y=2;
