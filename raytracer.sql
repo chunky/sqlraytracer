@@ -25,8 +25,8 @@ INSERT INTO camera (cameraid, x, y, z, rot_x, rot_y, rot_z, fov_rad_x, fov_rad_y
   VALUES (1.0, 0.0, 0.0, -120.0, 0.0, 0.0, 0.0, PI()/3.0, PI()/3.0, 4, 2);
 
 DROP TABLE IF EXISTS img CASCADE;
-CREATE TABLE img (res_x INTEGER NOT NULL, res_y INTEGER NOT NULL);
-    INSERT INTO img (res_x, res_y) VALUES (450, 450);
+CREATE TABLE img (res_x INTEGER NOT NULL, res_y INTEGER NOT NULL, gamma DOUBLE PRECISION);
+    INSERT INTO img (res_x, res_y, gamma) VALUES (450, 450, 1.9);
 
 
 -- Skipped bits:
@@ -39,14 +39,14 @@ CREATE VIEW rays AS
     WITH RECURSIVE xs AS (SELECT 0 AS u, 0.0 AS img_frac_x UNION ALL SELECT u+1, (u+1.0)/img.res_x FROM xs, img WHERE xs.u<img.res_x-1),
      ys AS (SELECT 0 AS v, 0.0 AS img_frac_y UNION ALL SELECT v+1, (v+1.0)/img.res_y FROM ys, img WHERE ys.v<img.res_y-1),
      px_sample_n(px_sample_n) AS (SELECT 1 UNION ALL SELECT px_sample_n+1 FROM px_sample_n, camera WHERE px_sample_n<camera.samples_per_px),
-     rs(img_x, img_y, depth, max_ray_depth, samples_per_px, px_sample_n,
+     rs(img_x, img_y, depth, max_ray_depth, samples_per_px, px_sample_n, color_mult,
           ray_col_r, ray_col_g, ray_col_b,
           x1, y1, z1,
           dir_x, dir_y, dir_z,
           dir_lensquared,
           ray_len, hit_light, stop_tracing, ray_len_idx) AS
         -- Send out initial set of rays from camera
-         (SELECT xs.u, ys.v, -1, max_ray_depth, samples_per_px, px_sample_n,
+         (SELECT xs.u, ys.v, 0, max_ray_depth, samples_per_px, px_sample_n, 2.0,
                 CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION),
                  c.x, c.y, c.z,
                  SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) + 0.5 * (RANDOM()-0.5) * (fov_rad_x/res_x),
@@ -58,13 +58,13 @@ CREATE VIEW rays AS
               FROM camera c, img, xs, ys, px_sample_n
         UNION ALL
          -- Collide all rays with spheres
-          SELECT img_x, img_y, depth+1, max_ray_depth, samples_per_px, px_sample_n,
+          SELECT img_x, img_y, depth+1, max_ray_depth, samples_per_px, px_sample_n, 0.5*color_mult,
                  CASE WHEN discrim>0 THEN (CASE WHEN is_light THEN sphere_col_r ELSE sphere_col_r*0.9*(1+norm_x/norm_len) END)
-                     ELSE 1.0-(dir_y/SQRT(dir_lensquared))+0.5*(dir_y/SQRT(dir_lensquared)) END,
+                     ELSE 1.0-(0.5*((dir_y/SQRT(dir_lensquared)+1.0)))+0.5*(0.5*((dir_y/SQRT(dir_lensquared)+1.0))) END,
                  CASE WHEN discrim>0 THEN (CASE WHEN is_light THEN sphere_col_g ELSE sphere_col_g*0.9*(1+norm_y/norm_len) END)
-                     ELSE 1.0-(dir_y/SQRT(dir_lensquared))+0.7*(dir_y/SQRT(dir_lensquared)) END,
+                     ELSE 1.0-(0.5*((dir_y/SQRT(dir_lensquared)+1.0)))+0.7*(0.5*((dir_y/SQRT(dir_lensquared)+1.0))) END,
                  CASE WHEN discrim>0 THEN (CASE WHEN is_light THEN sphere_col_b ELSE sphere_col_b*0.9*(1+norm_z/norm_len) END)
-                     ELSE 1.0-(dir_y/SQRT(dir_lensquared))+1.0*(dir_y/SQRT(dir_lensquared)) END,
+                     ELSE 1.0-(0.5*((dir_y/SQRT(dir_lensquared)+1.0)))+1.0*(0.5*((dir_y/SQRT(dir_lensquared)+1.0))) END,
                  -- x1, y1, z1
                  hit_x, hit_y, hit_z,
                  -- dir_x, dir_y, dir_z
@@ -119,11 +119,11 @@ CREATE VIEW do_render AS
 --          SUM(A.ray_col_r / (A.samples_per_px*POW(2, A.depth))) col_r,
 --          SUM(A.ray_col_g / (A.samples_per_px*POW(2, A.depth))) col_g,
 --          SUM(A.ray_col_b / (A.samples_per_px*POW(2, A.depth))) col_b
-         GREATEST(0.0, LEAST(SUM(A.ray_col_r/(POW(2, A.depth)*A.samples_per_px)), CAST(1.0 AS DOUBLE PRECISION))) col_r,
-         GREATEST(0.0, LEAST(SUM(A.ray_col_g/(POW(2, A.depth)*A.samples_per_px)), CAST(1.0 AS DOUBLE PRECISION))) col_g,
-         GREATEST(0.0, LEAST(SUM(A.ray_col_b/(POW(2, A.depth)*A.samples_per_px)), CAST(1.0 AS DOUBLE PRECISION))) col_b
+         GREATEST(0.0, LEAST(SUM(POW(A.color_mult * A.ray_col_r/A.samples_per_px, gamma)), CAST(1.0 AS DOUBLE PRECISION))) col_r,
+         GREATEST(0.0, LEAST(SUM(POW(A.color_mult * A.ray_col_g/A.samples_per_px, gamma)), CAST(1.0 AS DOUBLE PRECISION))) col_g,
+         GREATEST(0.0, LEAST(SUM(POW(A.color_mult * A.ray_col_b/A.samples_per_px, gamma)), CAST(1.0 AS DOUBLE PRECISION))) col_b
 
-    FROM rays A
+    FROM rays A, img
      WHERE A.ray_col_r IS NOT NULL
         --LEFT JOIN rays B ON A.img_x=B.img_x AND A.img_y=B.img_y AND A.ray_len_idx=1 AND A.depth=B.depth-1
     GROUP BY -A.img_y, A.img_x
@@ -140,4 +140,4 @@ CREATE VIEW ppm AS
       FROM do_render, maxcol;
   ;
 
-SELECT * FROM rays WHERE img_x=2 AND img_y=2;
+-- SELECT * FROM rays WHERE img_x=2 AND img_y=2;
