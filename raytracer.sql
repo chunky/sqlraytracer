@@ -116,7 +116,7 @@ CREATE VIEW ppm AS
   UNION ALL
     SELECT res_x || ' ' || res_y || ' ' || mc FROM img, maxcol
   UNION ALL
-    SELECT CAST((mc+col_r*mc)/2 AS INTEGER) || ' ' || CAST((mc+col_g*mc)/2 AS INTEGER) || ' ' || CAST((mc+col_b*mc)/2 AS INTEGER)
+    SELECT CAST(col_r*mc AS INTEGER) || ' ' || CAST(col_g*mc AS INTEGER) || ' ' || CAST(col_b*mc AS INTEGER)
       FROM do_render, maxcol;
   ;
 
