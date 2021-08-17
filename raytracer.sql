@@ -1,13 +1,14 @@
 DROP TABLE IF EXISTS material CASCADE;
 CREATE TABLE material (materialid SERIAL PRIMARY KEY, name TEXT,
   mat_col_r DOUBLE PRECISION NOT NULL, mat_col_g DOUBLE PRECISION NOT NULL, mat_col_b DOUBLE PRECISION NOT NULL,
-  is_light BOOLEAN NOT NULL, is_metal BOOLEAN NOT NULL);
-INSERT INTO material (name, mat_col_r, mat_col_g, mat_col_b, is_light, is_metal) VALUES
-    ('dark', 0.1, 0.1, 0.1, FALSE, TRUE),
-    ('red', 0.95, 0.0, 0.0, FALSE, TRUE),
-    ('green', 0.0, 0.95, 0.0, FALSE, TRUE),
-    ('blue', 0.0, 0.0, 0.95, FALSE, TRUE),
-    ('bright', 1.0, 1.0, 1.0, FALSE, TRUE)
+  is_light BOOLEAN NOT NULL, is_metal BOOLEAN NOT NULL, shade_normal BOOLEAN NOT NULL, is_mirror BOOLEAN NOT NULL);
+INSERT INTO material (name, mat_col_r, mat_col_g, mat_col_b, is_light, is_metal, shade_normal, is_mirror) VALUES
+    ('dark', 0.1, 0.1, 0.1, FALSE, TRUE, FALSE, FALSE),
+    ('red', 0.95, 0.0, 0.0, FALSE, TRUE, FALSE, FALSE),
+    ('green', 0.0, 0.95, 0.0, FALSE, TRUE, FALSE, FALSE),
+    ('blue', 0.0, 0.0, 0.95, FALSE, TRUE, TRUE, FALSE),
+    ('bright', 1.0, 1.0, 1.0, FALSE, TRUE, TRUE, FALSE),
+    ('mirror', 0.0, 0.0, 0.0, FALSE, FALSE, FALSE, TRUE)
 ;
 
 DROP TABLE IF EXISTS sphere CASCADE;
@@ -16,11 +17,11 @@ CREATE TABLE sphere (sphereid SERIAL,
   radius DOUBLE PRECISION NOT NULL, radius2 DOUBLE PRECISION, materialid INTEGER NOT NULL REFERENCES material(materialid));
 INSERT INTO sphere (cx, cy, cz, radius, materialid) VALUES
     (9, 9, -10, 5, (SELECT materialid FROM material WHERE name='dark')),
-    (-5, 7, 12, 7, (SELECT materialid FROM material WHERE name='red')),
+    (-5, 7, 17, 7, (SELECT materialid FROM material WHERE name='red')),
     (15, -15, -1, 4, (SELECT materialid FROM material WHERE name='green')),
     (-2, -3, 8, 10, (SELECT materialid FROM material WHERE name='blue')),
-    (-15, -3, -15, 2, (SELECT materialid FROM material WHERE name='bright'))
-;
+    (-15, -3, -15, 2, (SELECT materialid FROM material WHERE name='bright')),
+    (0, -950, 0, 1000, (SELECT materialid FROM material WHERE name='mirror'))
 ;
 UPDATE sphere SET radius2 = radius*radius WHERE radius2 IS NULL;
 
@@ -31,7 +32,7 @@ CREATE TABLE camera (cameraid INTEGER PRIMARY KEY,
   fov_rad_x DOUBLE PRECISION NOT NULL, fov_rad_y DOUBLE PRECISION NOT NULL,
   max_ray_depth INTEGER NOT NULL, samples_per_px INTEGER NOT NULL);
 INSERT INTO camera (cameraid, x, y, z, rot_x, rot_y, rot_z, fov_rad_x, fov_rad_y, max_ray_depth, samples_per_px)
-  VALUES (1.0, 0.0, 0.0, -120.0, 0.0, 0.0, 0.0, PI()/2.0, PI()/2.0, 4, 2);
+  VALUES (1.0, 0.0, 0.0, -120.0, 0.0, 0.0, 0.0, PI()/2.0, PI()/2.0, 6, 2);
 
 DROP TABLE IF EXISTS img CASCADE;
 CREATE TABLE img (res_x INTEGER NOT NULL, res_y INTEGER NOT NULL, gamma DOUBLE PRECISION);
@@ -55,7 +56,7 @@ CREATE VIEW rays AS
           dir_lensquared,
           ray_len, stop_tracing, ray_len_idx) AS
         -- Send out initial set of rays from camera
-         (SELECT xs.u, ys.v, -1, max_ray_depth, samples_per_px, px_sample_n, 2.0,
+         (SELECT xs.u, ys.v, -1, max_ray_depth, samples_per_px, px_sample_n, 1.0,
                 CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION),
                  c.x, c.y, c.z,
                  SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) + 0.5 * (RANDOM()-0.5) * (fov_rad_x/res_x),
@@ -67,12 +68,25 @@ CREATE VIEW rays AS
               FROM camera c, img, xs, ys, px_sample_n
         UNION ALL
          -- Collide all rays with spheres
-          SELECT img_x, img_y, depth+1, max_ray_depth, samples_per_px, px_sample_n, 0.5*color_mult,
-                 CASE WHEN discrim>0 THEN (CASE WHEN is_light THEN mat_col_r ELSE mat_col_r*(1+norm_x/norm_len) END)
+          SELECT img_x, img_y, depth+1, max_ray_depth, samples_per_px, px_sample_n,
+                 (CASE WHEN is_mirror THEN 1.0 ELSE 0.5 END)*color_mult,
+                 CASE WHEN discrim>0 THEN (CASE
+                                                WHEN shade_normal THEN mat_col_r*(1+norm_x/norm_len)
+                                                WHEN is_mirror THEN NULL
+                                                ELSE mat_col_r
+                                           END)
                      ELSE 1.0-(0.5*((dir_y/SQRT(dir_lensquared)+1.0)))+0.2*(0.5*((dir_y/SQRT(dir_lensquared)+1.0))) END,
-                 CASE WHEN discrim>0 THEN (CASE WHEN is_light THEN mat_col_g ELSE mat_col_g*(1+norm_y/norm_len) END)
+                 CASE WHEN discrim>0 THEN (CASE
+                                                WHEN shade_normal THEN mat_col_g*(1+norm_y/norm_len)
+                                                WHEN is_mirror THEN NULL
+                                                ELSE mat_col_g
+                                           END)
                      ELSE 1.0-(0.5*((dir_y/SQRT(dir_lensquared)+1.0)))+0.3*(0.5*((dir_y/SQRT(dir_lensquared)+1.0))) END,
-                 CASE WHEN discrim>0 THEN (CASE WHEN is_light THEN mat_col_b ELSE mat_col_b*(1+norm_z/norm_len) END)
+                 CASE WHEN discrim>0 THEN (CASE
+                                                WHEN shade_normal THEN mat_col_b*(1+norm_y/norm_len)
+                                                WHEN is_mirror THEN NULL
+                                                ELSE mat_col_b
+                                           END)
                      ELSE 1.0-(0.5*((dir_y/SQRT(dir_lensquared)+1.0)))+1.0*(0.5*((dir_y/SQRT(dir_lensquared)+1.0))) END,
                  -- x1, y1, z1
                  hit_x, hit_y, hit_z,
@@ -81,7 +95,7 @@ CREATE VIEW rays AS
                  -- distance to center. fixme should be distance to intersection
                  t * SQRT(dir_lensquared),
                  discrim IS NULL OR is_light, ROW_NUMBER() OVER (PARTITION BY img_x, img_y, depth+1, px_sample_n
-                                                          ORDER BY (cx-x1)*(cx-x1) + (cy-y1)*(cy-y1) + (cz-z1)*(cz-z1))
+                                                          ORDER BY t)
            FROM rs
            LEFT JOIN LATERAL
                (SELECT s.*, ((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z) * ((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
@@ -134,7 +148,7 @@ CREATE VIEW do_render AS
          GREATEST(0.0, LEAST(1.0, SUM(POW(A.color_mult * A.ray_col_b/A.samples_per_px, gamma)))) col_b
 
     FROM rays A, img
-     WHERE A.ray_col_r IS NOT NULL
+     WHERE A.ray_col_r IS NOT NULL AND A.depth>=0
         --LEFT JOIN rays B ON A.img_x=B.img_x AND A.img_y=B.img_y AND A.ray_len_idx=1 AND A.depth=B.depth-1
     GROUP BY -A.img_y, A.img_x
     ORDER BY -A.img_y, A.img_x;
@@ -150,4 +164,4 @@ CREATE VIEW ppm AS
       FROM do_render, maxcol;
   ;
 
-SELECT * FROM rays WHERE img_x=2 AND img_y=2;
+-- SELECT * FROM rays WHERE img_x=2 AND img_y=2;
