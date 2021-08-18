@@ -10,9 +10,9 @@ CREATE VIEW rays AS
           x1, y1, z1,
           dir_x, dir_y, dir_z,
           dir_lensquared,
-          ray_len, stop_tracing, ray_len_idx) AS
+          stop_tracing, ray_len_idx, hit_sphereid) AS
         -- Send out initial set of rays from camera
-         (SELECT xs.u, ys.v, -1, max_ray_depth, samples_per_px, px_sample_n, 1.0,
+         (SELECT xs.u, ys.v, -1, max_ray_depth, samples_per_px, px_sample_n, 2.0,
                 CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION),
                  c.x, c.y, c.z,
                  SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) + 0.5 * (RANDOM()-0.5) * (fov_rad_x/res_x),
@@ -20,7 +20,7 @@ CREATE VIEW rays AS
                  CAST(1.0 AS DOUBLE PRECISION),
                  SQRT(SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x)*SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) +
                       SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y)*SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + 1.0),
-                 CAST(1.0 AS DOUBLE PRECISION), CAST(0 AS BOOLEAN), CAST(1 AS BIGINT)
+                 CAST(0 AS BOOLEAN), CAST(1 AS BIGINT), CAST(NULL AS INTEGER)
               FROM camera c, img, xs, ys, px_sample_n
         UNION ALL
          -- Collide all rays with spheres
@@ -47,11 +47,10 @@ CREATE VIEW rays AS
                  -- x1, y1, z1
                  hit_x, hit_y, hit_z,
                  -- dir_x, dir_y, dir_z
-                 norm_x/norm_len, norm_y/norm_len, norm_z/norm_len, CAST(1.0 AS DOUBLE PRECISION),
-                 -- distance to center. fixme should be distance to intersection
-                 t * SQRT(dir_lensquared),
+                 0.05*RANDOM() + norm_x/norm_len, 0.05*RANDOM() + norm_y/norm_len, 0.05*RANDOM() + norm_z/norm_len, 1.0,
                  discrim IS NULL OR is_light, ROW_NUMBER() OVER (PARTITION BY img_x, img_y, depth+1, px_sample_n
-                                                          ORDER BY t)
+                                                          ORDER BY t),
+                 sphereid
            FROM rs
            LEFT JOIN LATERAL
                (SELECT s.*, ((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z) * ((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
