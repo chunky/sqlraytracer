@@ -18,8 +18,8 @@ CREATE VIEW rays AS
                  SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) + 0.5 * (RANDOM()-0.5) * (fov_rad_x/res_x),
                  SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + 0.5 * (RANDOM()-0.5) * (fov_rad_y/res_y),
                  CAST(1.0 AS DOUBLE PRECISION),
-                 SQRT(SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x)*SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) +
-                      SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y)*SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + 1.0),
+                 SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x)*SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) +
+                      SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y)*SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + 1.0,
                  CAST(0 AS BOOLEAN), CAST(1 AS BIGINT), CAST(NULL AS INTEGER)
               FROM camera c, img, xs, ys, px_sample_n
         UNION ALL
@@ -28,26 +28,29 @@ CREATE VIEW rays AS
                  (CASE WHEN is_mirror THEN 1.0 ELSE 0.5 END)*color_mult,
                  CASE WHEN discrim>0 THEN (CASE
                                                 WHEN shade_normal THEN mat_col_r*(1+norm_x/norm_len)
-                                                WHEN is_mirror THEN NULL
                                                 ELSE mat_col_r
                                            END)
                      ELSE 1.0-(0.5*((dir_y/SQRT(dir_lensquared)+1.0)))+0.2*(0.5*((dir_y/SQRT(dir_lensquared)+1.0))) END,
                  CASE WHEN discrim>0 THEN (CASE
                                                 WHEN shade_normal THEN mat_col_g*(1+norm_y/norm_len)
-                                                WHEN is_mirror THEN NULL
                                                 ELSE mat_col_g
                                            END)
                      ELSE 1.0-(0.5*((dir_y/SQRT(dir_lensquared)+1.0)))+0.3*(0.5*((dir_y/SQRT(dir_lensquared)+1.0))) END,
                  CASE WHEN discrim>0 THEN (CASE
                                                 WHEN shade_normal THEN mat_col_b*(1+norm_y/norm_len)
-                                                WHEN is_mirror THEN NULL
                                                 ELSE mat_col_b
                                            END)
                      ELSE 1.0-(0.5*((dir_y/SQRT(dir_lensquared)+1.0)))+1.0*(0.5*((dir_y/SQRT(dir_lensquared)+1.0))) END,
                  -- x1, y1, z1
                  hit_x, hit_y, hit_z,
                  -- dir_x, dir_y, dir_z
-                 0.05*RANDOM() + norm_x/norm_len, 0.05*RANDOM() + norm_y/norm_len, 0.05*RANDOM() + norm_z/norm_len, 1.0,
+                 CASE WHEN is_metal THEN (dir_x - 2 * norm_x * dot_ray_norm) / reflection_len
+                     ELSE 0.05*RANDOM() + norm_x/norm_len END,
+                 CASE WHEN is_metal THEN (dir_y - 2 * norm_y * dot_ray_norm) / reflection_len
+                     ELSE 0.05*RANDOM() + norm_y/norm_len END,
+                 CASE WHEN is_metal THEN (dir_x - 2 * norm_x * dot_ray_norm) / reflection_len
+                     ELSE 0.05*RANDOM() + norm_z/norm_len END,
+                 1.0,
                  discrim IS NULL OR is_light, ROW_NUMBER() OVER (PARTITION BY img_x, img_y, depth+1, px_sample_n
                                                           ORDER BY t),
                  sphereid
@@ -65,10 +68,16 @@ CREATE VIEW rays AS
                        x1+dir_x*t-cx AS norm_x, y1+dir_y*t-cy AS norm_y, z1+dir_z*t-cz AS norm_z,
                        SQRT((x1+dir_x*t-cx)*(x1+dir_x*t-cx)+(y1+dir_y*t-cy)*(y1+dir_y*t-cy)+(z1+dir_z*t-cz)*(z1+dir_z*t-cz)) AS norm_len
                ) sphere_normal ON discrim>0 AND t>0
+           LEFT JOIN LATERAL
+               (SELECT dir_x*norm_x + dir_y*norm_y + dir_z*norm_z AS dot_ray_norm,
+                       (dir_x - 2 * norm_x * (dir_x*norm_x + dir_y*norm_y + dir_z*norm_z)) * (dir_x - 2 * norm_x * (dir_x*norm_x + dir_y*norm_y + dir_z*norm_z)) +
+                       (dir_y - 2 * norm_y * (dir_x*norm_x + dir_y*norm_y + dir_z*norm_z)) * (dir_y - 2 * norm_y * (dir_x*norm_x + dir_y*norm_y + dir_z*norm_z)) +
+                       (dir_z - 2 * norm_z * (dir_x*norm_x + dir_y*norm_y + dir_z*norm_z)) * (dir_z - 2 * norm_z * (dir_x*norm_x + dir_y*norm_y + dir_z*norm_z)) AS reflection_len
+               ) dot_ray_norm ON norm_x IS NOT NULL
            LEFT JOIN material ON material.materialid=hit_sphere.materialid
               WHERE depth<max_ray_depth AND NOT stop_tracing AND ray_len_idx=1)
    SELECT * FROM rs WHERE ray_len_idx=1;
-
+-- select * from rays;
 --SELECT * FROM rays WHERE img_x=
          -- double hit_sphere(const point3& center, double radius, const ray& r) {
          --     vec3 oc = r.origin() - center;
