@@ -91,28 +91,6 @@ CREATE VIEW rays AS
              )
    SELECT * FROM rs WHERE ray_len_idx=1;
 -- select * from rays;
---SELECT * FROM rays WHERE img_x=
-         -- double hit_sphere(const point3& center, double radius, const ray& r) {
-         --     vec3 oc = r.origin() - center;
-         --            x1-cx, y1-cy, z1-cz
-         --     auto a = dot(r.direction(), r.direction());
-         --            dir_lensquared
-         --     auto half_b = dot(oc, r.direction());
-         --            ((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
-         --     auto c = dot(oc, oc) - radius*radius;
-         --            (x1-cx)*(x1-cx) + (y1-cy)*(y1-cy) + (z1-cz)*(z1-cz) - radius2
-         --     auto discriminant = half_b*half_b - a*c;
-         --            ((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z) * ((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
-         --               - dir_lensquared * ((x1-cx)*(x1-cx) + (y1-cy)*(y1-cy) + (z1-cz)*(z1-cz) - radius2)
-         --     if (discriminant < 0) {
-         --         return -1.0;
-         --     } else {
-         --         return (-half_b - sqrt(discriminant) ) / a;
-         --            -((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
-         --            -SQRT(((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z) * ((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
-         --                 - dir_lensquared * ((x1-cx)*(x1-cx) + (y1-cy)*(y1-cy) + (z1-cz)*(z1-cz) - radius2)) / dir_lensquared
-         --     }
-         -- }
 
 DROP VIEW IF EXISTS do_render;
 CREATE VIEW do_render AS
