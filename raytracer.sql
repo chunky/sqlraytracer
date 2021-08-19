@@ -39,17 +39,17 @@ CREATE VIEW rays AS
           SELECT img_x, img_y, rs.sceneid, depth+1, max_ray_depth, samples_per_px, px_sample_n,
                  (CASE WHEN is_mirror THEN 0.95 ELSE 0.5 END)*color_mult,
                  CASE WHEN discrim>0 THEN (CASE
-                                                WHEN shade_normal THEN mat_col_r*(1+norm_x/norm_len)
+                                                WHEN shade_normal THEN mat_col_r*(1+norm_x/norm_len)/2
                                                 ELSE mat_col_r
                                            END)
                      ELSE 1.0-(0.5*((dir_y/SQRT(dir_lensquared)+1.0)))+0.2*(0.5*((dir_y/SQRT(dir_lensquared)+1.0))) END,
                  CASE WHEN discrim>0 THEN (CASE
-                                                WHEN shade_normal THEN mat_col_g*(1+norm_y/norm_len)
+                                                WHEN shade_normal THEN mat_col_g*(1+norm_y/norm_len)/2
                                                 ELSE mat_col_g
                                            END)
                      ELSE 1.0-(0.5*((dir_y/SQRT(dir_lensquared)+1.0)))+0.3*(0.5*((dir_y/SQRT(dir_lensquared)+1.0))) END,
                  CASE WHEN discrim>0 THEN (CASE
-                                                WHEN shade_normal THEN mat_col_b*(1+norm_y/norm_len)
+                                                WHEN shade_normal THEN mat_col_b*(1+norm_z/norm_len)/2
                                                 ELSE mat_col_b
                                            END)
                      ELSE 1.0-(0.5*((dir_y/SQRT(dir_lensquared)+1.0)))+1.0*(0.5*((dir_y/SQRT(dir_lensquared)+1.0))) END,
@@ -62,7 +62,7 @@ CREATE VIEW rays AS
                  CASE WHEN is_metal THEN (dir_y - 2 * norm_y * dot_ray_norm) / reflection_len
                      ELSE diffuse_dir_y/diffuse_dir_len
                   END,
-                 CASE WHEN is_metal THEN (dir_x - 2 * norm_x * dot_ray_norm) / reflection_len
+                 CASE WHEN is_metal THEN (dir_z - 2 * norm_z * dot_ray_norm) / reflection_len
                      ELSE diffuse_dir_z/diffuse_dir_len
                   END,
                  1.0,
