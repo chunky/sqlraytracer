@@ -1,16 +1,13 @@
-DROP VIEW IF EXISTS sphere_sample CASCADE;
-CREATE VIEW sphere_sample AS
-    WITH square_sample AS (SELECT 2.0*(RANDOM() - 0.5) AS a1, 2.0*(RANDOM() - 0.5) AS b1, 2.0*(RANDOM() - 0.5) AS c1
-          FROM generate_series(1, 10000)),
-         ball_sample AS (SELECT a1 AS a, b1 AS b, c1 AS c, SQRT(a1*a1+b1*b1+c1*c1) AS radius FROM square_sample WHERE 1>=(a1*a1+b1*b1+c1*c1)),
-         sphere_sample AS (SELECT a/radius AS x, b/radius AS y, c/radius AS z, a, b, c, ROW_NUMBER() OVER () AS sampleno, COUNT(*) OVER () AS n_samples FROM ball_sample)
-  SELECT * FROM sphere_sample;
-
 DROP VIEW IF EXISTS rays CASCADE;
 CREATE VIEW rays AS
-    WITH RECURSIVE xs AS (SELECT 0 AS u, 0.0 AS img_frac_x UNION ALL SELECT u+1, (u+1.0)/img.res_x FROM xs, img WHERE xs.u<img.res_x-1),
+    WITH RECURSIVE
+     xs AS (SELECT 0 AS u, 0.0 AS img_frac_x UNION ALL SELECT u+1, (u+1.0)/img.res_x FROM xs, img WHERE xs.u<img.res_x-1),
      ys AS (SELECT 0 AS v, 0.0 AS img_frac_y UNION ALL SELECT v+1, (v+1.0)/img.res_y FROM ys, img WHERE ys.v<img.res_y-1),
      px_sample_n(px_sample_n) AS (SELECT 1 UNION ALL SELECT px_sample_n+1 FROM px_sample_n, camera WHERE px_sample_n<camera.samples_per_px),
+     square_sample AS (SELECT 2.0*(RANDOM() - 0.5) AS a1, 2.0*(RANDOM() - 0.5) AS b1, 2.0*(RANDOM() - 0.5) AS c1
+          FROM generate_series(1, 10000)),
+     ball_sample AS (SELECT a1 AS a, b1 AS b, c1 AS c, SQRT(a1*a1+b1*b1+c1*c1) AS radius FROM square_sample WHERE 1>=(a1*a1+b1*b1+c1*c1)),
+     sphere_sample AS (SELECT a/radius AS x, b/radius AS y, c/radius AS z, a, b, c, ROW_NUMBER() OVER () AS sampleno, COUNT(*) OVER () AS n_samples FROM ball_sample),
      rs(img_x, img_y, depth, max_ray_depth, samples_per_px, px_sample_n, color_mult,
           ray_col_r, ray_col_g, ray_col_b,
           x1, y1, z1,
@@ -51,11 +48,14 @@ CREATE VIEW rays AS
                  hit_x, hit_y, hit_z,
                  -- dir_x, dir_y, dir_z
                  CASE WHEN is_metal THEN (dir_x - 2 * norm_x * dot_ray_norm) / reflection_len
-                     ELSE 0.05*RANDOM() + norm_x/norm_len END,
+                     ELSE diffuse_dir_x/diffuse_dir_len
+                 END,
                  CASE WHEN is_metal THEN (dir_y - 2 * norm_y * dot_ray_norm) / reflection_len
-                     ELSE 0.05*RANDOM() + norm_y/norm_len END,
+                     ELSE diffuse_dir_y/diffuse_dir_len
+                  END,
                  CASE WHEN is_metal THEN (dir_x - 2 * norm_x * dot_ray_norm) / reflection_len
-                     ELSE 0.05*RANDOM() + norm_z/norm_len END,
+                     ELSE diffuse_dir_z/diffuse_dir_len
+                  END,
                  1.0,
                  discrim IS NULL, ROW_NUMBER() OVER (PARTITION BY img_x, img_y, depth+1, px_sample_n
                                                           ORDER BY t),
@@ -81,7 +81,12 @@ CREATE VIEW rays AS
                        (dir_z - 2 * norm_z * (dir_x*norm_x + dir_y*norm_y + dir_z*norm_z)) * (dir_z - 2 * norm_z * (dir_x*norm_x + dir_y*norm_y + dir_z*norm_z)) AS reflection_len
                ) dot_ray_norm ON norm_x IS NOT NULL
            LEFT JOIN material ON material.materialid=hit_sphere.materialid
-           LEFT JOIN sphere_sample ss ON ss.sampleno=1+(img_x*img_y*depth*px_sample_n)%n_samples
+           LEFT JOIN LATERAL
+               (SELECT x, y, z,
+                       x+norm_x/norm_len AS diffuse_dir_x, y+norm_y/norm_len AS diffuse_dir_y, z+norm_z/norm_len AS diffuse_dir_z,
+                       SQRT((x+norm_x/norm_len)*(x+norm_x/norm_len)+(y+norm_y/norm_len)*(y+norm_y/norm_len)+(z+norm_z/norm_len)*(z+norm_z/norm_len)) AS diffuse_dir_len
+                FROM sphere_sample ss WHERE ss.sampleno=1+FLOOR(norm_x/norm_len) * n_samples
+               ) diffuse_scatter ON norm_x IS NOT NULL
               WHERE depth<max_ray_depth AND NOT stop_tracing AND ray_len_idx=1
              )
    SELECT * FROM rs WHERE ray_len_idx=1;
