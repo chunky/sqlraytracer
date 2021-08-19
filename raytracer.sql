@@ -15,8 +15,8 @@ CREATE VIEW rays AS
          (SELECT xs.u, ys.v, -1, max_ray_depth, samples_per_px, px_sample_n, 2.0,
                 CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION),
                  c.x, c.y, c.z,
-                 SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) + 0.5 * (RANDOM()-0.5) * (fov_rad_x/res_x),
-                 SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + 0.5 * (RANDOM()-0.5) * (fov_rad_y/res_y),
+                 SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) + 0.2 * (RANDOM()-0.5) * (fov_rad_x/res_x),
+                 SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + 0.2 * (RANDOM()-0.5) * (fov_rad_y/res_y),
                  CAST(1.0 AS DOUBLE PRECISION),
                  SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x)*SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) +
                       SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y)*SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + 1.0,
