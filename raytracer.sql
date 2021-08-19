@@ -1,5 +1,11 @@
--- Skipped bits:
---   "Front faces vs back faces"
+DROP VIEW IF EXISTS sphere_sample CASCADE;
+CREATE VIEW sphere_sample AS
+    WITH square_sample AS (SELECT 2.0*(RANDOM() - 0.5) AS a1, 2.0*(RANDOM() - 0.5) AS b1, 2.0*(RANDOM() - 0.5) AS c1
+          FROM generate_series(1, 10000)),
+         ball_sample AS (SELECT a1 AS a, b1 AS b, c1 AS c, SQRT(a1*a1+b1*b1+c1*c1) AS radius FROM square_sample WHERE 1>=(a1*a1+b1*b1+c1*c1)),
+         sphere_sample AS (SELECT a/radius AS x, b/radius AS y, c/radius AS z, a, b, c, ROW_NUMBER() OVER () AS sampleno, COUNT(*) OVER () AS n_samples FROM ball_sample)
+  SELECT * FROM sphere_sample;
+
 DROP VIEW IF EXISTS rays CASCADE;
 CREATE VIEW rays AS
     WITH RECURSIVE xs AS (SELECT 0 AS u, 0.0 AS img_frac_x UNION ALL SELECT u+1, (u+1.0)/img.res_x FROM xs, img WHERE xs.u<img.res_x-1),
@@ -51,7 +57,7 @@ CREATE VIEW rays AS
                  CASE WHEN is_metal THEN (dir_x - 2 * norm_x * dot_ray_norm) / reflection_len
                      ELSE 0.05*RANDOM() + norm_z/norm_len END,
                  1.0,
-                 discrim IS NULL OR is_light, ROW_NUMBER() OVER (PARTITION BY img_x, img_y, depth+1, px_sample_n
+                 discrim IS NULL, ROW_NUMBER() OVER (PARTITION BY img_x, img_y, depth+1, px_sample_n
                                                           ORDER BY t),
                  sphereid
            FROM rs
@@ -75,7 +81,9 @@ CREATE VIEW rays AS
                        (dir_z - 2 * norm_z * (dir_x*norm_x + dir_y*norm_y + dir_z*norm_z)) * (dir_z - 2 * norm_z * (dir_x*norm_x + dir_y*norm_y + dir_z*norm_z)) AS reflection_len
                ) dot_ray_norm ON norm_x IS NOT NULL
            LEFT JOIN material ON material.materialid=hit_sphere.materialid
-              WHERE depth<max_ray_depth AND NOT stop_tracing AND ray_len_idx=1)
+           LEFT JOIN sphere_sample ss ON ss.sampleno=1+(img_x*img_y*depth*px_sample_n)%n_samples
+              WHERE depth<max_ray_depth AND NOT stop_tracing AND ray_len_idx=1
+             )
    SELECT * FROM rs WHERE ray_len_idx=1;
 -- select * from rays;
 --SELECT * FROM rays WHERE img_x=
