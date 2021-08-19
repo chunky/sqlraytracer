@@ -15,8 +15,8 @@ CREATE VIEW rays AS
          (SELECT xs.u, ys.v, -1, max_ray_depth, samples_per_px, px_sample_n, 2.0,
                 CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION),
                  c.x, c.y, c.z,
-                 SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) + 0.2 * (RANDOM()-0.5) * (fov_rad_x/res_x),
-                 SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + 0.2 * (RANDOM()-0.5) * (fov_rad_y/res_y),
+                 SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) + 0.1 * (RANDOM()-0.5) * (fov_rad_x/res_x),
+                 SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + 0.1 * (RANDOM()-0.5) * (fov_rad_y/res_y),
                  CAST(1.0 AS DOUBLE PRECISION),
                  SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x)*SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) +
                       SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y)*SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + 1.0,
@@ -25,7 +25,7 @@ CREATE VIEW rays AS
         UNION ALL
          -- Collide all rays with spheres
           SELECT img_x, img_y, depth+1, max_ray_depth, samples_per_px, px_sample_n,
-                 (CASE WHEN is_mirror THEN 1.0 ELSE 0.5 END)*color_mult,
+                 (CASE WHEN is_mirror THEN 0.95 ELSE 0.5 END)*color_mult,
                  CASE WHEN discrim>0 THEN (CASE
                                                 WHEN shade_normal THEN mat_col_r*(1+norm_x/norm_len)
                                                 ELSE mat_col_r
@@ -104,16 +104,11 @@ CREATE VIEW rays AS
 DROP VIEW IF EXISTS do_render;
 CREATE VIEW do_render AS
  SELECT A.img_x, -A.img_y,
---          SUM(A.ray_col_r / (A.samples_per_px*POW(2, A.depth))) col_r,
---          SUM(A.ray_col_g / (A.samples_per_px*POW(2, A.depth))) col_g,
---          SUM(A.ray_col_b / (A.samples_per_px*POW(2, A.depth))) col_b
          GREATEST(0.0, LEAST(1.0, SUM(POW(A.color_mult * A.ray_col_r/A.samples_per_px, gamma)))) col_r,
          GREATEST(0.0, LEAST(1.0, SUM(POW(A.color_mult * A.ray_col_g/A.samples_per_px, gamma)))) col_g,
          GREATEST(0.0, LEAST(1.0, SUM(POW(A.color_mult * A.ray_col_b/A.samples_per_px, gamma)))) col_b
-
     FROM rays A, img
      WHERE A.ray_col_r IS NOT NULL AND A.depth>=0
-        --LEFT JOIN rays B ON A.img_x=B.img_x AND A.img_y=B.img_y AND A.ray_len_idx=1 AND A.depth=B.depth-1
     GROUP BY -A.img_y, A.img_x
     ORDER BY -A.img_y, A.img_x;
 
