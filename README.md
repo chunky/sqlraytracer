@@ -87,11 +87,11 @@ Also, there's something really beautiful about the simplicity of the
 core of the final rollup [edited for clarity]:
 ```sql
  SELECT img_x, img_y,
-         SUM(POW(A.color_mult * A.ray_col_r/A.samples_per_px, gamma)) col_r,
-         SUM(POW(A.color_mult * A.ray_col_g/A.samples_per_px, gamma)) col_g,
-         SUM(POW(A.color_mult * A.ray_col_b/A.samples_per_px, gamma)) col_b
+         SUM(POW(color_mult * ray_col_r/samples_per_px, gamma)) col_r,
+         SUM(POW(color_mult * ray_col_g/samples_per_px, gamma)) col_g,
+         SUM(POW(color_mult * ray_col_b/samples_per_px, gamma)) col_b
     FROM rays
-     WHERE ray_col_r IS NOT NULL AND A.depth>=0
+     WHERE ray_col_r IS NOT NULL
     GROUP BY img_y, img_x
 ```
 
