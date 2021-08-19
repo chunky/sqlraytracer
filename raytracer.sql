@@ -85,7 +85,7 @@ CREATE VIEW rays AS
                (SELECT x, y, z,
                        x+norm_x/norm_len AS diffuse_dir_x, y+norm_y/norm_len AS diffuse_dir_y, z+norm_z/norm_len AS diffuse_dir_z,
                        SQRT((x+norm_x/norm_len)*(x+norm_x/norm_len)+(y+norm_y/norm_len)*(y+norm_y/norm_len)+(z+norm_z/norm_len)*(z+norm_z/norm_len)) AS diffuse_dir_len
-                FROM sphere_sample ss WHERE ss.sampleno=1+FLOOR(norm_x/norm_len) * n_samples
+                FROM sphere_sample ss WHERE ss.sampleno=1+FLOOR(ABS(n_samples*norm_x/norm_len))
                ) diffuse_scatter ON norm_x IS NOT NULL
               WHERE depth<max_ray_depth AND NOT stop_tracing AND ray_len_idx=1
              )
