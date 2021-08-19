@@ -4,9 +4,10 @@ CREATE TABLE material (materialid SERIAL PRIMARY KEY, name TEXT,
   is_metal BOOLEAN NOT NULL, shade_normal BOOLEAN NOT NULL, is_mirror BOOLEAN NOT NULL);
 INSERT INTO material (name, mat_col_r, mat_col_g, mat_col_b, is_metal, shade_normal, is_mirror) VALUES
     ('dark', 0.1, 0.1, 0.1, TRUE, FALSE, FALSE),
-    ('red', 0.95, 0.0, 0.0, TRUE, FALSE, FALSE),
-    ('green', 0.0, 0.95, 0.0, TRUE, TRUE, FALSE),
+    ('red', 0.95, 0.0, 0.0, FALSE, TRUE, FALSE),
+    ('green', 0.0, 0.95, 0.0, FALSE, TRUE, FALSE),
     ('blue', 0.0, 0.0, 0.95, TRUE, TRUE, FALSE),
+    ('grey', 0.0, 0.0, 0.0, FALSE, FALSE, FALSE),
     ('bright', 1.0, 1.0, 1.0, TRUE, TRUE, FALSE),
     ('mirror', NULL, NULL, NULL, FALSE, FALSE, TRUE),
     ('bluemirror', 0.0, 0.0, 0.02, FALSE, FALSE, TRUE),
