@@ -21,6 +21,7 @@ CREATE VIEW rays AS
           x1, y1, z1,
           dir_x, dir_y, dir_z,
           dir_lensquared,
+          n_x, n_y, n_z, n_len,
           stop_tracing, ray_len_idx, hit_sphereid, n_sphere_samples) AS
         -- Send out initial set of rays from camera
          (SELECT xs.u, ys.v, c.sceneid, -1, max_ray_depth, samples_per_px, px_sample_n, 2.0,
@@ -31,6 +32,7 @@ CREATE VIEW rays AS
                  CAST(1.0 AS DOUBLE PRECISION),
                  SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x)*SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) +
                       SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y)*SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + 1.0,
+                 CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION),
                  CAST(0 AS BOOLEAN), CAST(1 AS BIGINT), CAST(NULL AS INTEGER),
                  (SELECT COUNT(*) FROM sphere_sample)
               FROM camera c, img, xs, ys, px_sample_n
@@ -56,16 +58,17 @@ CREATE VIEW rays AS
                  -- x1, y1, z1
                  hit_x, hit_y, hit_z,
                  -- dir_x, dir_y, dir_z
-                 CASE WHEN is_metal THEN (dir_x - 2 * norm_x * dot_ray_norm) / reflection_len
+                 CASE WHEN is_metal THEN (dir_x - 2 * norm_x * dot_ray_norm) / SQRT(reflection_len2)
                      ELSE diffuse_dir_x/diffuse_dir_len
                  END,
-                 CASE WHEN is_metal THEN (dir_y - 2 * norm_y * dot_ray_norm) / reflection_len
+                 CASE WHEN is_metal THEN (dir_y - 2 * norm_y * dot_ray_norm) / SQRT(reflection_len2)
                      ELSE diffuse_dir_y/diffuse_dir_len
                   END,
-                 CASE WHEN is_metal THEN (dir_z - 2 * norm_z * dot_ray_norm) / reflection_len
+                 CASE WHEN is_metal THEN (dir_z - 2 * norm_z * dot_ray_norm) / SQRT(reflection_len2)
                      ELSE diffuse_dir_z/diffuse_dir_len
                   END,
                  1.0,
+                 norm_x, norm_y, norm_z, norm_len,
                  discrim IS NULL, ROW_NUMBER() OVER (PARTITION BY img_x, img_y, depth+1, px_sample_n
                                                           ORDER BY t),
                  sphereid, n_sphere_samples
@@ -88,14 +91,14 @@ CREATE VIEW rays AS
                (SELECT dir_x*norm_x + dir_y*norm_y + dir_z*norm_z AS dot_ray_norm,
                        (dir_x - 2 * norm_x * (dir_x*norm_x + dir_y*norm_y + dir_z*norm_z)) * (dir_x - 2 * norm_x * (dir_x*norm_x + dir_y*norm_y + dir_z*norm_z)) +
                        (dir_y - 2 * norm_y * (dir_x*norm_x + dir_y*norm_y + dir_z*norm_z)) * (dir_y - 2 * norm_y * (dir_x*norm_x + dir_y*norm_y + dir_z*norm_z)) +
-                       (dir_z - 2 * norm_z * (dir_x*norm_x + dir_y*norm_y + dir_z*norm_z)) * (dir_z - 2 * norm_z * (dir_x*norm_x + dir_y*norm_y + dir_z*norm_z)) AS reflection_len
+                       (dir_z - 2 * norm_z * (dir_x*norm_x + dir_y*norm_y + dir_z*norm_z)) * (dir_z - 2 * norm_z * (dir_x*norm_x + dir_y*norm_y + dir_z*norm_z)) AS reflection_len2
                ) dot_ray_norm ON norm_x IS NOT NULL
            LEFT JOIN material ON material.materialid=hit_sphere.materialid
            LEFT JOIN LATERAL
                (SELECT x, y, z,
                        x+norm_x/norm_len AS diffuse_dir_x, y+norm_y/norm_len AS diffuse_dir_y, z+norm_z/norm_len AS diffuse_dir_z,
                        SQRT((x+norm_x/norm_len)*(x+norm_x/norm_len)+(y+norm_y/norm_len)*(y+norm_y/norm_len)+(z+norm_z/norm_len)*(z+norm_z/norm_len)) AS diffuse_dir_len
-                FROM sphere_sample ss WHERE ss.sampleno=1+FLOOR(n_sphere_samples*ABS((10000*norm_x)-FLOOR(10000*norm_x)))
+                FROM sphere_sample ss WHERE ss.sampleno=1+CAST(FLOOR(ABS((100000*dir_x)-FLOOR(100000*dir_x))*n_sphere_samples) AS INTEGER)
                ) diffuse_scatter ON norm_x IS NOT NULL
               WHERE depth<max_ray_depth AND NOT stop_tracing AND ray_len_idx=1
              )
