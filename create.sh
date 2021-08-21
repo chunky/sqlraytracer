@@ -19,8 +19,7 @@ psql \
 	--file=setup.sql \
 	--file=raytracer.sql \
 	--command="\\timing" \
-	--command="\\copy (select scenename from scene) to './${scenelist}' csv" \
-	--command="\\copy (explain select * from ppm) to './renderqueryplan.txt' csv"
+	--command="\\copy (select scenename from scene) to './${scenelist}' csv"
 
 while read scenename
 do
