@@ -31,12 +31,7 @@ CREATE TABLE sphere (sphereid SERIAL, sceneid INTEGER NOT NULL REFERENCES scene(
   cx DOUBLE PRECISION NOT NULL, cy DOUBLE PRECISION NOT NULL, cz DOUBLE PRECISION NOT NULL,
   radius DOUBLE PRECISION NOT NULL, radius2 DOUBLE PRECISION, materialid INTEGER NOT NULL REFERENCES material(materialid) DEFERRABLE);
 INSERT INTO sphere (cx, cy, cz, radius, materialid, sceneid) VALUES
---     (9, 9, -10, 5, (SELECT materialid FROM material WHERE name='dark')),
---     (-5, 7, 17, 7, (SELECT materialid FROM material WHERE name='mirror')),
---     (15, -15, -1, 4, (SELECT materialid FROM material WHERE name='green')),
---     (-2, -3, 8, 10, (SELECT materialid FROM material WHERE name='mirror')),
---     (-15, -3, -15, 2, (SELECT materialid FROM material WHERE name='bright')),
---
+
 (0, 24, -10, 5,
    (SELECT materialid FROM material WHERE name='bright'), (SELECT sceneid FROM scene WHERE scenename='reflectiontest')),
 (0, 5, 0, 5,
