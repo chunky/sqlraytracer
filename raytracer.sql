@@ -2,7 +2,7 @@ DROP TABLE IF EXISTS sphere_sample CASCADE;
 CREATE TABLE IF NOT EXISTS sphere_sample (x DOUBLE PRECISION NOT NULL, y DOUBLE PRECISION NOT NULL, z DOUBLE PRECISION NOT NULL,
 	a DOUBLE PRECISION NOT NULL, b DOUBLE PRECISION NOT NULL, c DOUBLE PRECISION NOT NULL, sampleno INTEGER NOT NULL, n_samples INTEGER NOT NULL);
 INSERT INTO sphere_sample
-     WITH square_sample AS (SELECT 2.0*(RANDOM() - 0.5) AS a1, 1.0*(RANDOM() - 0.5) AS b1, 1.0*(RANDOM() - 0.5) AS c1
+     WITH square_sample AS (SELECT 2.0*(RANDOM() - 0.5) AS a1, 2.0*(RANDOM() - 0.5) AS b1, 2.0*(RANDOM() - 0.5) AS c1
           FROM generate_series(1, 5000)),
      ball_sample AS (SELECT a1 AS a, b1 AS b, c1 AS c, SQRT(a1*a1+b1*b1+c1*c1) AS radius FROM square_sample WHERE 1>=(a1*a1+b1*b1+c1*c1)),
      sphere_sample AS (SELECT a/radius AS x, b/radius AS y, c/radius AS z, a, b, c, ROW_NUMBER() OVER () AS sampleno, COUNT(*) OVER () AS n_samples FROM ball_sample)
