@@ -1,16 +1,41 @@
 #!/bin/sh
 
+PGHOST=mills
+PGPORT=5432
+PGUSER=raytracer
+PGDB=raytracer
+
 PGPASSWORD=raytracer
 export PGPASSWORD
 
+
+scenelist=scenelist.txt
+
 psql \
-	--host=mills \
-	--port=5432 \
-	--username=raytracer \
-	--dbname=raytracer \
+	--host=${PGHOST} \
+	--port=${PGPORT} \
+	--username=${PGUSER} \
+	--dbname=${PGDB} \
 	--file=setup.sql \
 	--file=raytracer.sql \
 	--command="\\timing" \
-	--command="\\copy (select * from ppm) to './pgimg.ppm' csv"
+	--command="\\copy (select scenename from scene) to './${scenelist}' csv" \
+	--command="\\copy (explain select * from ppm) to './renderqueryplan.txt' csv"
 
-xdg-open pgimg.ppm
+while read scenename
+do
+  echo ""
+  echo "Rendering scene ${scenename}"
+  psql \
+  	--host=${PGHOST} \
+  	--port=${PGPORT} \
+  	--username=${PGUSER} \
+  	--dbname=${PGDB} \
+  	--command="UPDATE camera SET sceneid=(SELECT sceneid FROM scene WHERE scenename='${scenename}')" \
+  	--command="\\timing" \
+	--command="\\copy (select * from ppm) to './${scenename}.ppm' csv"
+
+xdg-open ${scenename}.ppm
+
+done < ${scenelist}
+
