@@ -1,6 +1,6 @@
 #!/bin/sh
 
-PGHOST=mills
+PGHOST=localhost
 PGPORT=5432
 PGUSER=raytracer
 PGDB=raytracer
@@ -34,7 +34,7 @@ do
   	--command="\\timing" \
 	--command="\\copy (select * from ppm) to './${scenename}.ppm' csv"
 
-xdg-open ${scenename}.ppm
+  xdg-open ${scenename}.ppm
 
 done < ${scenelist}
 
