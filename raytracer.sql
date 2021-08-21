@@ -15,7 +15,10 @@ CREATE VIEW rays AS
     WITH RECURSIVE
      xs AS (SELECT 0 AS u, 0.0 AS img_frac_x UNION ALL SELECT u+1, (u+1.0)/img.res_x FROM xs, img WHERE xs.u<img.res_x-1),
      ys AS (SELECT 0 AS v, 0.0 AS img_frac_y UNION ALL SELECT v+1, (v+1.0)/img.res_y FROM ys, img WHERE ys.v<img.res_y-1),
-     px_sample_n(px_sample_n) AS (SELECT 1 UNION ALL SELECT px_sample_n+1 FROM px_sample_n, camera WHERE px_sample_n<camera.samples_per_px),
+     px_sample_n(px_sample_n, px_jitter_u, px_jitter_v) AS (SELECT 1, (RANDOM()-0.5) * (fov_rad_x/res_x), (RANDOM()-0.5) * (fov_rad_y/res_y)
+                FROM camera, img
+        UNION ALL SELECT px_sample_n+1, (RANDOM()-0.5) * (fov_rad_x/res_x), (RANDOM()-0.5) * (fov_rad_y/res_y)
+                FROM px_sample_n, camera, img WHERE px_sample_n<camera.samples_per_px),
      rs(img_x, img_y, sceneid, depth, max_ray_depth, samples_per_px, px_sample_n, color_mult,
           ray_col_r, ray_col_g, ray_col_b,
           x1, y1, z1,
@@ -27,11 +30,16 @@ CREATE VIEW rays AS
          (SELECT xs.u, ys.v, c.sceneid, -1, max_ray_depth, samples_per_px, px_sample_n, 2.0,
                 CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION),
                  c.x, c.y, c.z,
-                 SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) + 2.0 * (RANDOM()-0.5) * (fov_rad_x/res_x),
-                 SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + 2.0 * (RANDOM()-0.5) * (fov_rad_y/res_y),
+                 (SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) + px_jitter_u) /
+                    SQRT(((SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) + px_jitter_u)*(SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) + px_jitter_u) +
+                      (SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + px_jitter_v)*(SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + px_jitter_v) + 1.0)),
+                 (SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + px_jitter_v) /
+                    SQRT(((SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) + px_jitter_u)*(SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) + px_jitter_u) +
+                      (SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + px_jitter_v)*(SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + px_jitter_v) + 1.0)),
+                 CAST(1.0 AS DOUBLE PRECISION) /
+                    SQRT(((SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) + px_jitter_u)*(SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) + px_jitter_u) +
+                      (SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + px_jitter_v)*(SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + px_jitter_v) + 1.0)),
                  CAST(1.0 AS DOUBLE PRECISION),
-                 SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x)*SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) +
-                      SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y)*SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + 1.0,
                  CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION),
                  CAST(0 AS BOOLEAN), CAST(1 AS BIGINT), CAST(NULL AS INTEGER),
                  (SELECT COUNT(*) FROM sphere_sample)
@@ -58,13 +66,13 @@ CREATE VIEW rays AS
                  -- x1, y1, z1
                  hit_x, hit_y, hit_z,
                  -- dir_x, dir_y, dir_z
-                 CASE WHEN is_metal THEN (dir_x - 2 * norm_x * dot_ray_norm) / SQRT(reflection_len2)
+                 CASE WHEN is_metal THEN (dir_x - 2 * norm_x * dot_ray_norm / norm_len) / reflection_len
                      ELSE diffuse_dir_x/diffuse_dir_len
                  END,
-                 CASE WHEN is_metal THEN (dir_y - 2 * norm_y * dot_ray_norm) / SQRT(reflection_len2)
+                 CASE WHEN is_metal THEN (dir_y - 2 * norm_y * dot_ray_norm / norm_len) / reflection_len
                      ELSE diffuse_dir_y/diffuse_dir_len
                   END,
-                 CASE WHEN is_metal THEN (dir_z - 2 * norm_z * dot_ray_norm) / SQRT(reflection_len2)
+                 CASE WHEN is_metal THEN (dir_z - 2 * norm_z * dot_ray_norm / norm_len) / reflection_len
                      ELSE diffuse_dir_z/diffuse_dir_len
                   END,
                  1.0,
@@ -74,11 +82,11 @@ CREATE VIEW rays AS
                  sphereid, n_sphere_samples
            FROM rs
            LEFT JOIN LATERAL
-               (SELECT s.*, ((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z) * ((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
-                                - dir_lensquared * ((x1-cx)*(x1-cx) + (y1-cy)*(y1-cy) + (z1-cz)*(z1-cz) - radius2) discrim,
-                       (-((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
-                        -SQRT(ABS(((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z) * ((x1-cx)*dir_x + (y1-cy)*dir_y + (z1-cz)*dir_z)
-                            - dir_lensquared * ((x1-cx)*(x1-cx) + (y1-cy)*(y1-cy) + (z1-cz)*(z1-cz) - radius2)) / dir_lensquared)) t
+               (SELECT s.*, (((x1-cx)*dir_x+(y1-cy)*dir_y+(z1-cz)*dir_z)*((x1-cx)*dir_x+(y1-cy)*dir_y+(z1-cz)*dir_z)-
+                             (((x1-cx)*(x1-cx)+(y1-cy)*(y1-cy)+(z1-cz)*(z1-cz)-radius2)*dir_lensquared)) discrim,
+                       (-((x1-cx)*dir_x+(y1-cy)*dir_y+(z1-cz)*dir_z)
+                            -SQRT(((x1-cx)*dir_x+(y1-cy)*dir_y+(z1-cz)*dir_z)*((x1-cx)*dir_x+(y1-cy)*dir_y+(z1-cz)*dir_z)-
+                                    (((x1-cx)*(x1-cx)+(y1-cy)*(y1-cy)+(z1-cz)*(z1-cz)-radius2)*dir_lensquared))/dir_lensquared) t
                          FROM sphere s
                          WHERE s.sceneid=rs.sceneid
                        ) hit_sphere ON discrim>0 AND t>0
@@ -89,9 +97,9 @@ CREATE VIEW rays AS
                ) sphere_normal ON discrim>0 AND t>0
            LEFT JOIN LATERAL
                (SELECT dir_x*norm_x + dir_y*norm_y + dir_z*norm_z AS dot_ray_norm,
-                       (dir_x - 2 * norm_x * (dir_x*norm_x + dir_y*norm_y + dir_z*norm_z)) * (dir_x - 2 * norm_x * (dir_x*norm_x + dir_y*norm_y + dir_z*norm_z)) +
-                       (dir_y - 2 * norm_y * (dir_x*norm_x + dir_y*norm_y + dir_z*norm_z)) * (dir_y - 2 * norm_y * (dir_x*norm_x + dir_y*norm_y + dir_z*norm_z)) +
-                       (dir_z - 2 * norm_z * (dir_x*norm_x + dir_y*norm_y + dir_z*norm_z)) * (dir_z - 2 * norm_z * (dir_x*norm_x + dir_y*norm_y + dir_z*norm_z)) AS reflection_len2
+                       SQRT((dir_x - 2 * norm_x * (dir_x*norm_x + dir_y*norm_y + dir_z*norm_z)/norm_len) * (dir_x - 2 * norm_x * (dir_x*norm_x + dir_y*norm_y + dir_z*norm_z)/norm_len) +
+                       (dir_y - 2 * norm_y * (dir_x*norm_x + dir_y*norm_y + dir_z*norm_z)/norm_len) * (dir_y - 2 * norm_y * (dir_x*norm_x + dir_y*norm_y + dir_z*norm_z)/norm_len) +
+                       (dir_z - 2 * norm_z * (dir_x*norm_x + dir_y*norm_y + dir_z*norm_z)/norm_len) * (dir_z - 2 * norm_z * (dir_x*norm_x + dir_y*norm_y + dir_z*norm_z)/norm_len)) AS reflection_len
                ) dot_ray_norm ON norm_x IS NOT NULL
            LEFT JOIN material ON material.materialid=hit_sphere.materialid
            LEFT JOIN LATERAL
@@ -108,11 +116,11 @@ CREATE VIEW rays AS
 DROP VIEW IF EXISTS do_render;
 CREATE VIEW do_render AS
  SELECT A.img_x, -A.img_y,
-         GREATEST(0.0, LEAST(1.0, SUM(POW(A.color_mult * A.ray_col_r/A.samples_per_px, gamma)))) col_r,
-         GREATEST(0.0, LEAST(1.0, SUM(POW(A.color_mult * A.ray_col_g/A.samples_per_px, gamma)))) col_g,
-         GREATEST(0.0, LEAST(1.0, SUM(POW(A.color_mult * A.ray_col_b/A.samples_per_px, gamma)))) col_b
+         GREATEST(0.0, LEAST(1.0, SUM(POW(A.color_mult * COALESCE(A.ray_col_r, 0.0)/A.samples_per_px, gamma)))) col_r,
+         GREATEST(0.0, LEAST(1.0, SUM(POW(A.color_mult * COALESCE(A.ray_col_g, 0.0)/A.samples_per_px, gamma)))) col_g,
+         GREATEST(0.0, LEAST(1.0, SUM(POW(A.color_mult * COALESCE(A.ray_col_b, 0.0)/A.samples_per_px, gamma)))) col_b
     FROM rays A, img
-     WHERE A.ray_col_r IS NOT NULL AND A.depth>=0
+     WHERE A.depth>=0
     GROUP BY -A.img_y, A.img_x
     ORDER BY -A.img_y, A.img_x;
 
