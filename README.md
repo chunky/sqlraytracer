@@ -2,6 +2,17 @@
 
 Everyone writes a raytracer sooner or later. This is mine.
 
+## Example Outputs
+
+![](example_outputs/adjacentballs.png)
+![](example_outputs/onegreyball.png)
+![](example_outputs/reflectiontest.png)
+![](example_outputs/twodiffuseballs.png)
+![](example_outputs/onegreenball.png)
+![](example_outputs/onemirrorball.png)
+![](example_outputs/threemirrors.png)
+![](example_outputs/twomirrorballs.png)
+
 ## Usage
 
 ```shell
@@ -17,6 +28,27 @@ For what it's worth, I created mine thus on my ubuntu desktop:
 sudo su - postgres
 createuser --pwprompt raytracer
 createdb -O raytracer raytracer
+```
+
+### Levers for development and rendering
+
+While doing development, obviously a few-minute render time is a pretty
+poor cycle time. There are a few levers you can pull to speed things up
+and reduce quality. They're on "camera" and "img" in setup.sql:
+
+* *samples\_per\_px* - This is the number of rays/sub-samples per pixel.
+  - 1 or 2 is fine during debugging
+  - 15-20 gives "workable" pictures
+  - Going above 50 doesn't generate much visible improvement
+* *max\_ray\_depth* - The maximum number of ray bounces
+  - For simple scenes, it usually makes no more than 5 or so bounces
+* *res\_x* and *res\_y* - Final image resolution
+  - Smaller is faster
+
+The main CTE carries a lot of stuff that's unnecessary to final output.
+This is so I can examine rays bouncing through the scene with:
+```sql
+SELECT * FROM rays WHERE img_x=100 AND img_y=250
 ```
 
 ## Database
@@ -35,19 +67,6 @@ So although I started developing this in SQLite, I ended up leaning
 on PostgreSQL. As I write this, it works in postgres and hasn't been
 tested in anything else.
 
-## Standing on the Necks of Giants
-
-Two years before I wrote this "The most advanced MySQL raytracer on the
-market right now" did the rounds on social media:
-https://www.pouet.net/prod.php?which=83222
-
-I had a few things in mind that I wanted to do differently [worse?]:
-
-* Demoscene is an artform. I'm not golfing, this isn't minified
-* Not a single query; that can be done with CTEs, but ehhhhhhhh
-* Animation as an endgame
-* Mainly, I'm just buggering around with the wrong tool for the job
-
 ## Interesting Implementation Pieces
 
 Such as it is, I did find myself solving some problems in interesting
@@ -57,7 +76,7 @@ ways.
 
 JOIN LATERAL is a way to do a correlated subquery in a JOIN, instead of
 just in a WHERE clause. I use this as a way to hoist calculations and
-do many of them only once.
+do many of them only once and, in some cases, avoid excessive duplication.
 
 ### Diffuse Scattering
 
@@ -91,9 +110,26 @@ core of the final rollup [edited for clarity]:
          SUM(POW(color_mult * ray_col_g/samples_per_px, gamma)) col_g,
          SUM(POW(color_mult * ray_col_b/samples_per_px, gamma)) col_b
     FROM rays
-     WHERE ray_col_r IS NOT NULL
     GROUP BY img_y, img_x
 ```
+
+### Scenes, materials, etc
+
+Because this is in SQL, I can store multiple scenes in the database. Which
+one is actually rendered is selected in the "camera" table.
+
+## Standing on the Necks of Giants
+
+Two years before I wrote this "The most advanced MySQL raytracer on the
+market right now" did the rounds on social media:
+https://www.pouet.net/prod.php?which=83222
+
+I had a few things in mind that I wanted to do differently [worse?]:
+
+* Demoscene is an artform. I'm not golfing, this isn't minified
+* Not a single query; that can be done with CTEs, but ehhhhhhhh
+* Animation as an endgame
+* Mainly, I'm just buggering around with the wrong tool for the job
 
 ## References
 
@@ -103,3 +139,4 @@ the deliberately obtuse way I'm coding it.
 
 
 Gary <chunky@icculus.org>
+
