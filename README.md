@@ -4,14 +4,7 @@ Everyone writes a raytracer sooner or later. This is mine.
 
 ## Example Outputs
 
-<img src="example_outputs/adjacentballs.png" width=200>
-<img src="example_outputs/onegreyball.png" width=200>
-<img src="example_outputs/reflectiontest.png" width=200>
-<img src="example_outputs/twodiffuseballs.png" width=200>
-<img src="example_outputs/onegreenball.png" width=200>
-<img src="example_outputs/onemirrorball.png" width=200>
-<img src="example_outputs/threemirrors.png" width=200>
-<img src="example_outputs/twomirrorballs.png" width=200>
+<img src="example_outputs/adjacentballs.png" width=200> <img src="example_outputs/onegreyball.png" width=200> <img src="example_outputs/reflectiontest.png" width=200> <img src="example_outputs/twodiffuseballs.png" width=200> <img src="example_outputs/onegreenball.png" width=200> <img src="example_outputs/onemirrorball.png" width=200> <img src="example_outputs/threemirrors.png" width=200> <img src="example_outputs/twomirrorballs.png" width=200>
 
 ## Usage
 
