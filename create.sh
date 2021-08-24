@@ -8,6 +8,8 @@ PGDB=raytracer
 PGPASSWORD=raytracer
 export PGPASSWORD
 
+# Creating this file overrides which scenes get rendered
+scenelist_override=scenelist_override.txt
 
 scenelist=scenelist.txt
 
@@ -20,6 +22,8 @@ psql \
 	--file=raytracer.sql \
 	--command="\\timing" \
 	--command="\\copy (select scenename from scene) to './${scenelist}' csv"
+
+test -e ${scenelist_override} && cp ${scenelist_override} ${scenelist}
 
 while read scenename
 do
