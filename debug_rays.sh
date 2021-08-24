@@ -12,8 +12,8 @@ psql \
         --port=5432 \
         --username=raytracer \
         --dbname=raytracer \
-        --command="\\copy (select * from sphere) to './spheres.csv' csv" \
-        --command="\\copy (select * from rays WHERE 0=img_x%10 AND img_y=200) to './rays.csv' csv"
+        --command="\\copy (select sphere.* from sphere inner join camera c ON c.sceneid=sphere.sceneid) to './spheres.csv' csv" \
+	--command="\\copy (select * from rays WHERE 1=depth) to './rays.csv' csv"
 
 gnuplot <<EOH
 set terminal png size 1024,1024
@@ -36,3 +36,6 @@ plot \
         "spheres.csv" u 3:4:5 w circles t 'spheres', \
         "rays.csv" u 12:13:15:16 w vectors t 'rays'
 EOH
+
+xdg-open debug_rays_xz.png
+
