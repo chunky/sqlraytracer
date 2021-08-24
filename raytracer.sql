@@ -27,7 +27,7 @@ CREATE VIEW rays AS
           n_x, n_y, n_z, n_len,
           stop_tracing, ray_len_idx, hit_sphereid, n_sphere_samples, inside_dielectric) AS
         -- Send out initial set of rays from camera
-         (SELECT xs.u, ys.v, c.sceneid, -1, max_ray_depth, samples_per_px, px_sample_n, 2.0,
+         (SELECT xs.u, ys.v, c.sceneid, -1, max_ray_depth, samples_per_px, px_sample_n, CAST(2.0 AS DOUBLE PRECISION),
                 CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION),
                  c.x, c.y, c.z,
                  (SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) + px_jitter_u) /
@@ -47,7 +47,7 @@ CREATE VIEW rays AS
         UNION ALL
          -- Collide all rays with spheres
           SELECT img_x, img_y, rs.sceneid, depth+1, max_ray_depth, samples_per_px, px_sample_n,
-                 (CASE WHEN is_mirror THEN 0.95 ELSE 0.5 END)*color_mult,
+                 (CASE WHEN norm_x IS NULL THEN 0.5 ELSE mirror_frac END)*color_mult,
                  CASE WHEN discrim>0 THEN (CASE
                                                 WHEN shade_normal THEN mat_col_r*(1+norm_x/norm_len)/2
                                                 ELSE mat_col_r

@@ -1,21 +1,22 @@
 DROP TABLE IF EXISTS material CASCADE;
 CREATE TABLE material (materialid SERIAL PRIMARY KEY, name TEXT,
   mat_col_r DOUBLE PRECISION, mat_col_g DOUBLE PRECISION, mat_col_b DOUBLE PRECISION,
-  is_metal BOOLEAN NOT NULL, shade_normal BOOLEAN NOT NULL, is_mirror BOOLEAN NOT NULL,
+  is_metal BOOLEAN NOT NULL, shade_normal BOOLEAN NOT NULL, mirror_frac DOUBLE PRECISION NOT NULL,
   is_dielectric BOOLEAN NOT NULL, eta DOUBLE PRECISION NOT NULL DEFAULT 1.0);
-INSERT INTO material (name, mat_col_r, mat_col_g, mat_col_b, is_metal, shade_normal, is_mirror, is_dielectric, eta) VALUES
-    ('dark', 0.1, 0.1, 0.1, FALSE, FALSE, FALSE, FALSE, 1.0),
-    ('red', 0.95, 0.0, 0.0, FALSE, TRUE, FALSE, FALSE, 1.0),
-    ('green', 0.0, 0.95, 0.0, FALSE, TRUE, FALSE, FALSE, 1.0),
-    ('blue', 0.0, 0.0, 0.95, TRUE, TRUE, FALSE, FALSE, 1.0),
-    ('grey', 0.1, 0.1, 0.1, FALSE, FALSE, FALSE, FALSE, 1.0),
-    ('bright', 1.0, 1.0, 1.0, TRUE, TRUE, FALSE, FALSE, 1.0),
-    ('mirror', NULL, NULL, NULL, TRUE, FALSE, TRUE, FALSE, 1.0),
-    ('bluemirror', 0.0, 0.0, 0.3, TRUE, FALSE, TRUE, FALSE, 1.0),
-    ('greenmirror', 0.0, 0.2, 0.0, TRUE, FALSE, TRUE, FALSE, 1.0),
-    ('glass', NULL, NULL, NULL, FALSE, FALSE, FALSE, TRUE, 1.5),
-    ('greenglass', 0.0, 0.2, 0.0, FALSE, FALSE, FALSE, TRUE, 1.5),
-    ('diamond', NULL, NULL, NULL, FALSE, FALSE, FALSE, TRUE, 2.4)
+INSERT INTO material (name, mat_col_r, mat_col_g, mat_col_b, is_metal, shade_normal, mirror_frac, is_dielectric, eta) VALUES
+    ('dark', 0.1, 0.1, 0.1, FALSE, FALSE, 0.1, FALSE, 1.0),
+    ('red', 0.95, 0.0, 0.0, FALSE, TRUE, 0.5, FALSE, 1.0),
+    ('green', 0.0, 0.95, 0.0, FALSE, TRUE, 0.5, FALSE, 1.0),
+    ('blue', 0.0, 0.0, 0.95, TRUE, TRUE, 0.5, FALSE, 1.0),
+    ('grey', 0.1, 0.1, 0.1, FALSE, FALSE, 0.5, FALSE, 1.0),
+    ('bright', 1.0, 1.0, 1.0, TRUE, TRUE, 0.5, FALSE, 1.0),
+    ('mirror', NULL, NULL, NULL, TRUE, FALSE, 0.99, FALSE, 1.0),
+    ('bluemirror', 0.0, 0.0, 0.3, TRUE, FALSE, 0.9, FALSE, 1.0),
+    ('greenmirror', 0.0, 0.2, 0.0, TRUE, FALSE, 0.9, FALSE, 1.0),
+    ('glass', NULL, NULL, NULL, FALSE, FALSE, 0.95, TRUE, 1.5),
+    ('greenglass', 0.0, 0.2, 0.0, FALSE, FALSE, 0.8, TRUE, 1.5),
+    ('diamond', NULL, NULL, NULL, FALSE, FALSE, 0.99, TRUE, 2.4),
+    ('antiglass', NULL, NULL, NULL, FALSE, FALSE, 0.99, TRUE, 0.1)
 ;
 
 DROP TABLE IF EXISTS scene CASCADE;
@@ -75,13 +76,13 @@ INSERT INTO sphere (cx, cy, cz, radius, materialid, sceneid) VALUES
 
 (0, -1250, 0, 1250,
    (SELECT materialid FROM material WHERE name='grey'), (SELECT sceneid FROM scene WHERE scenename='dielectricparty')),
--- (0, 25, -20, 25,
---    (SELECT materialid FROM material WHERE name='glass'), (SELECT sceneid FROM scene WHERE scenename='dielectricparty')),
-(-10, 25, -20, 25,
+(20, 25, -20, 25,
+   (SELECT materialid FROM material WHERE name='antiglass'), (SELECT sceneid FROM scene WHERE scenename='dielectricparty')),
+(-20, 25, 0, 25,
+   (SELECT materialid FROM material WHERE name='glass'), (SELECT sceneid FROM scene WHERE scenename='dielectricparty')),
+(5, 5, -10, 5,
    (SELECT materialid FROM material WHERE name='diamond'), (SELECT sceneid FROM scene WHERE scenename='dielectricparty')),
--- (5, 20, -10, 20,
---    (SELECT materialid FROM material WHERE name='diamond'), (SELECT sceneid FROM scene WHERE scenename='dielectricparty')),
-(10, 25, 30, 25,
+(15, 25, 30, 25,
    (SELECT materialid FROM material WHERE name='red'), (SELECT sceneid FROM scene WHERE scenename='dielectricparty')),
 
 (0, -1250, 0, 1250,
@@ -124,7 +125,7 @@ CREATE TABLE camera (cameraid INTEGER PRIMARY KEY, sceneid INTEGER NOT NULL REFE
   max_ray_depth INTEGER NOT NULL, samples_per_px INTEGER NOT NULL);
 INSERT INTO camera (cameraid, x, y, z, rot_x, rot_y, rot_z, fov_rad_x, fov_rad_y, max_ray_depth, samples_per_px, sceneid)
   VALUES (1.0, 0.0, 15.0, -120.0, 0.0, 0.0, 0.0, PI()/3.0, PI()/3.0,
-          40, 10, (SELECT sceneid FROM scene WHERE scenename='oneglassball'));
+          40, 30, (SELECT sceneid FROM scene WHERE scenename='oneglassball'));
 
 DROP TABLE IF EXISTS img CASCADE;
 CREATE TABLE img (res_x INTEGER NOT NULL, res_y INTEGER NOT NULL, gamma DOUBLE PRECISION);
