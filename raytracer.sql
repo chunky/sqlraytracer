@@ -30,15 +30,15 @@ CREATE VIEW rays AS
          (SELECT xs.u, ys.v, c.sceneid, -1, max_ray_depth, samples_per_px, px_sample_n, CAST(2.0 AS DOUBLE PRECISION),
                 CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION),
                  c.x, c.y, c.z,
-                 (SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) + px_jitter_u) /
-                    SQRT(((SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) + px_jitter_u)*(SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) + px_jitter_u) +
-                      (SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + px_jitter_v)*(SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + px_jitter_v) + 1.0)),
-                 (SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + px_jitter_v) /
-                    SQRT(((SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) + px_jitter_u)*(SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) + px_jitter_u) +
-                      (SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + px_jitter_v)*(SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + px_jitter_v) + 1.0)),
+                 (SIN(c.rot_y-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) + px_jitter_u) /
+                    SQRT(((SIN(c.rot_y-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) + px_jitter_u)*(SIN(c.rot_y-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) + px_jitter_u) +
+                      (SIN(c.rot_x-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + px_jitter_v)*(SIN(c.rot_x-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + px_jitter_v) + 1.0)),
+                 (SIN(c.rot_x-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + px_jitter_v) /
+                    SQRT(((SIN(c.rot_y-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) + px_jitter_u)*(SIN(c.rot_y-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) + px_jitter_u) +
+                      (SIN(c.rot_x-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + px_jitter_v)*(SIN(c.rot_x-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + px_jitter_v) + 1.0)),
                  CAST(1.0 AS DOUBLE PRECISION) /
-                    SQRT(((SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) + px_jitter_u)*(SIN(-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) + px_jitter_u) +
-                      (SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + px_jitter_v)*(SIN(-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + px_jitter_v) + 1.0)),
+                    SQRT(((SIN(c.rot_y-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) + px_jitter_u)*(SIN(c.rot_y-(fov_rad_x/2.0)+img_frac_x*fov_rad_x) + px_jitter_u) +
+                      (SIN(c.rot_x-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + px_jitter_v)*(SIN(c.rot_x-(fov_rad_y/2.0)+img_frac_y*fov_rad_y) + px_jitter_v) + 1.0)),
                  CAST(1.0 AS DOUBLE PRECISION),
                  CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION),
                  CAST(0 AS BOOLEAN), CAST(1 AS BIGINT), CAST(NULL AS INTEGER),

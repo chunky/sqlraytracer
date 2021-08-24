@@ -124,8 +124,8 @@ CREATE TABLE camera (cameraid INTEGER PRIMARY KEY, sceneid INTEGER NOT NULL REFE
   fov_rad_x DOUBLE PRECISION NOT NULL, fov_rad_y DOUBLE PRECISION NOT NULL,
   max_ray_depth INTEGER NOT NULL, samples_per_px INTEGER NOT NULL);
 INSERT INTO camera (cameraid, x, y, z, rot_x, rot_y, rot_z, fov_rad_x, fov_rad_y, max_ray_depth, samples_per_px, sceneid)
-  VALUES (1.0, 0.0, 15.0, -120.0, 0.0, 0.0, 0.0, PI()/3.0, PI()/3.0,
-          40, 30, (SELECT sceneid FROM scene WHERE scenename='oneglassball'));
+  VALUES (1.0, 0.0, 65.0, -120.0, -0.34, 0.0, 0.0, PI()/3.0, PI()/3.0,
+          40, 10, (SELECT sceneid FROM scene WHERE scenename='oneglassball'));
 
 DROP TABLE IF EXISTS img CASCADE;
 CREATE TABLE img (res_x INTEGER NOT NULL, res_y INTEGER NOT NULL, gamma DOUBLE PRECISION);
