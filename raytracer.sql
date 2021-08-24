@@ -85,7 +85,7 @@ CREATE VIEW rays AS
                  norm_x, norm_y, norm_z, norm_len,
                  discrim IS NULL, ROW_NUMBER() OVER (PARTITION BY img_x, img_y, depth+1, px_sample_n
                                                           ORDER BY t),
-                 sphereid, n_sphere_samples, is_dielectric AND NOT inside_dielectric
+                 sphereid, n_sphere_samples, (inside_dielectric AND NOT must_reflect) OR (NOT inside_dielectric AND NOT is_dielectric)
            FROM rs
            LEFT JOIN LATERAL
                (SELECT s.*, (((x1-cx)*dir_x+(y1-cy)*dir_y+(z1-cz)*dir_z)*((x1-cx)*dir_x+(y1-cy)*dir_y+(z1-cz)*dir_z)-
