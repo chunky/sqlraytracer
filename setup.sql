@@ -39,9 +39,11 @@ INSERT INTO scene (scenename) VALUES ('dielectricparty'),
 DROP TABLE IF EXISTS sphere CASCADE;
 CREATE TABLE sphere (sphereid SERIAL, sceneid INTEGER NOT NULL REFERENCES scene(sceneid),
   cx DOUBLE PRECISION NOT NULL, cy DOUBLE PRECISION NOT NULL, cz DOUBLE PRECISION NOT NULL,
-  radius DOUBLE PRECISION, radius2 DOUBLE PRECISION, materialid INTEGER NOT NULL REFERENCES material(materialid) DEFERRABLE);
-INSERT INTO sphere (cx, cy, cz, radius, materialid, sceneid) VALUES
+  radius DOUBLE PRECISION, radius2 DOUBLE PRECISION, materialid INTEGER NOT NULL REFERENCES material(materialid) DEFERRABLE,
+  vel_x DOUBLE PRECISION NOT NULL DEFAULT 0.0, vel_y DOUBLE PRECISION NOT NULL DEFAULT 0.0, vel_z DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+  coefficient_of_restitution DOUBLE PRECISION NOT NULL DEFAULT 1.0);
 
+INSERT INTO sphere (cx, cy, cz, radius, materialid, sceneid) VALUES
 (0, 24, -10, 5,
    (SELECT materialid FROM material WHERE name='bright'), (SELECT sceneid FROM scene WHERE scenename='reflectiontest')),
 (0, 5, 0, 5,
@@ -133,9 +135,10 @@ INSERT INTO sphere (cx, cy, cz, radius, materialid, sceneid) VALUES
 (0, -1250, 0, 1250,
    (SELECT materialid FROM material WHERE name='grey'), (SELECT sceneid FROM scene WHERE scenename='busyday'))
 ;
-INSERT INTO sphere (cx, cy, cz, radius, materialid, sceneid)
-SELECT (RANDOM()-0.5) * 100, 15 + RANDOM() * 5, (RANDOM()-0.5) * 100, RANDOM() * 15,
-       1+CAST((RANDOM()*(SELECT MAX(materialid)-1 FROM material)) AS INTEGER), (SELECT sceneid FROM scene WHERE scenename='busyday')
+INSERT INTO sphere (cx, cy, cz, radius, materialid, sceneid, coefficient_of_restitution)
+SELECT (RANDOM()-0.5) * 100, 50 + RANDOM() * 20, (RANDOM()-0.5) * 100, RANDOM() * 15,
+       1+CAST((RANDOM()*(SELECT MAX(materialid)-1 FROM material)) AS INTEGER), (SELECT sceneid FROM scene WHERE scenename='busyday'),
+       0.5*RANDOM()+0.5
     FROM generate_series(1, 30)
     GROUP BY generate_series;
 
@@ -150,10 +153,37 @@ CREATE TABLE camera (cameraid INTEGER PRIMARY KEY, sceneid INTEGER NOT NULL REFE
   max_ray_depth INTEGER NOT NULL, samples_per_px INTEGER NOT NULL);
 INSERT INTO camera (cameraid, x, y, z, rot_x, rot_y, rot_z, fov_rad_x, fov_rad_y, max_ray_depth, samples_per_px, sceneid)
   VALUES (1.0, 0.0, 65.0, -120.0, -0.34, 0.0, 0.0, PI()/3.0, PI()/3.0,
-          40, 30, (SELECT sceneid FROM scene WHERE scenename='oneglassball'));
+          40, 30, (SELECT sceneid FROM scene WHERE scenename='busyday'));
 
 DROP TABLE IF EXISTS img CASCADE;
 CREATE TABLE img (res_x INTEGER NOT NULL, res_y INTEGER NOT NULL, gamma DOUBLE PRECISION);
     INSERT INTO img (res_x, res_y, gamma)
         VALUES (650, 650, 1.0);
 
+CREATE OR REPLACE FUNCTION animate_spheres()
+RETURNS TRIGGER
+LANGUAGE PLPGSQL
+AS $$
+    BEGIN
+        UPDATE sphere SET vel_x = vel_x + NEW.grav_x*NEW.dt,
+                          vel_y = vel_y + NEW.grav_y*NEW.dt,
+                          vel_z = vel_z + NEW.grav_z*NEW.dt
+          WHERE sceneid=(SELECT sceneid FROM camera) AND cy>0;
+        UPDATE sphere SET vel_y = -vel_y*coefficient_of_restitution WHERE radius>cy
+          AND sceneid=(SELECT sceneid FROM camera);
+        UPDATE sphere SET cx=cx+vel_x*NEW.dt,
+                          cy=cy+vel_y*NEW.dt,
+                          cz=cz+vel_z*NEW.dt
+          WHERE sceneid=(SELECT sceneid FROM camera);
+        RETURN NEW;
+    END;
+$$ ;
+
+DROP VIEW IF EXISTS updateworld;
+CREATE VIEW updateworld AS (SELECT 0.0 AS dt, 0.0 AS grav_x, 0.0 AS grav_y, 0.0 AS grav_z);
+CREATE TRIGGER trig_update_world INSTEAD OF INSERT ON updateworld FOR EACH ROW
+    EXECUTE PROCEDURE animate_spheres();
+
+-- INSERT INTO updateworld (dt, grav_x, grav_y, grav_z) VALUES (0.1, 0.0, -9.8, 0.0);
+-- select cx, cy, cz, vel_x, vel_y, vel_z from sphere
+--   where sceneid=(SELECT sceneid FROM scene WHERE scenename='busyday');
