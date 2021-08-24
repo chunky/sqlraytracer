@@ -25,7 +25,7 @@ CREATE VIEW rays AS
           dir_x, dir_y, dir_z,
           dir_lensquared,
           n_x, n_y, n_z, n_len,
-          stop_tracing, ray_len_idx, hit_sphereid, n_sphere_samples) AS
+          stop_tracing, ray_len_idx, hit_sphereid, n_sphere_samples, inside_dielectric) AS
         -- Send out initial set of rays from camera
          (SELECT xs.u, ys.v, c.sceneid, -1, max_ray_depth, samples_per_px, px_sample_n, 2.0,
                 CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION),
@@ -42,7 +42,7 @@ CREATE VIEW rays AS
                  CAST(1.0 AS DOUBLE PRECISION),
                  CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION), CAST(NULL AS DOUBLE PRECISION),
                  CAST(0 AS BOOLEAN), CAST(1 AS BIGINT), CAST(NULL AS INTEGER),
-                 (SELECT COUNT(*) FROM sphere_sample)
+                 (SELECT COUNT(*) FROM sphere_sample), FALSE
               FROM camera c, img, xs, ys, px_sample_n
         UNION ALL
          -- Collide all rays with spheres
@@ -67,19 +67,22 @@ CREATE VIEW rays AS
                  hit_x, hit_y, hit_z,
                  -- dir_x, dir_y, dir_z
                  CASE WHEN is_metal THEN (dir_x - 2 * norm_x * dot_ray_norm / norm_len) / reflection_len
+                     WHEN is_dielectric THEN (reflec_dir_x + refrac_dir_x) / refrac_len
                      ELSE diffuse_dir_x/diffuse_dir_len
                  END,
                  CASE WHEN is_metal THEN (dir_y - 2 * norm_y * dot_ray_norm / norm_len) / reflection_len
+                     WHEN is_dielectric THEN (reflec_dir_y + refrac_dir_y) / refrac_len
                      ELSE diffuse_dir_y/diffuse_dir_len
                   END,
                  CASE WHEN is_metal THEN (dir_z - 2 * norm_z * dot_ray_norm / norm_len) / reflection_len
+                     WHEN is_dielectric THEN (reflec_dir_z + refrac_dir_z) / refrac_len
                      ELSE diffuse_dir_z/diffuse_dir_len
                   END,
                  1.0,
                  norm_x, norm_y, norm_z, norm_len,
                  discrim IS NULL, ROW_NUMBER() OVER (PARTITION BY img_x, img_y, depth+1, px_sample_n
                                                           ORDER BY t),
-                 sphereid, n_sphere_samples
+                 sphereid, n_sphere_samples, is_dielectric AND NOT inside_dielectric
            FROM rs
            LEFT JOIN LATERAL
                (SELECT s.*, (((x1-cx)*dir_x+(y1-cy)*dir_y+(z1-cz)*dir_z)*((x1-cx)*dir_x+(y1-cy)*dir_y+(z1-cz)*dir_z)-
@@ -108,6 +111,24 @@ CREATE VIEW rays AS
                        SQRT((x+norm_x/norm_len)*(x+norm_x/norm_len)+(y+norm_y/norm_len)*(y+norm_y/norm_len)+(z+norm_z/norm_len)*(z+norm_z/norm_len)) AS diffuse_dir_len
                 FROM sphere_sample ss WHERE ss.sampleno=1+CAST(FLOOR(ABS((100000*dir_x)-FLOOR(100000*dir_x))*n_sphere_samples) AS INTEGER)
                ) diffuse_scatter ON norm_x IS NOT NULL
+           LEFT JOIN LATERAL
+               (SELECT LEAST(1.0, (-dir_x*norm_x -dir_y*norm_y -dir_z*norm_z)) AS cos_theta
+               ) refract_cos_theta ON norm_x IS NOT NULL
+          LEFT JOIN LATERAL
+               (SELECT (CASE WHEN is_dielectric THEN 1.0/eta ELSE eta END) * (dir_x + cos_theta * norm_x) AS refrac_dir_x,
+                       (CASE WHEN is_dielectric THEN 1.0/eta ELSE eta END) * (dir_y + cos_theta * norm_y) AS refrac_dir_y,
+                       (CASE WHEN is_dielectric THEN 1.0/eta ELSE eta END) * (dir_z + cos_theta * norm_z) AS refrac_dir_z
+               ) refrac_vec ON norm_x IS NOT NULL
+          LEFT JOIN LATERAL
+               (SELECT -norm_x*SQRT(ABS(1.0 - refrac_dir_x*refrac_dir_x + refrac_dir_y*refrac_dir_y + refrac_dir_z*refrac_dir_z)) AS reflec_dir_x,
+                       -norm_y*SQRT(ABS(1.0 - refrac_dir_x*refrac_dir_x + refrac_dir_y*refrac_dir_y + refrac_dir_z*refrac_dir_z)) AS reflec_dir_y,
+                       -norm_z*SQRT(ABS(1.0 - refrac_dir_x*refrac_dir_x + refrac_dir_y*refrac_dir_y + refrac_dir_z*refrac_dir_z)) AS reflec_dir_z
+               ) reflec_vec ON norm_x IS NOT NULL
+          LEFT JOIN LATERAL
+               (SELECT SQRT((reflec_dir_x+refrac_dir_x)*(reflec_dir_x+refrac_dir_x)+
+                       (reflec_dir_y+refrac_dir_y)*(reflec_dir_y+refrac_dir_y)+
+                       (reflec_dir_z+refrac_dir_z)*(reflec_dir_z+refrac_dir_z)) refrac_len
+               ) refrac_len ON norm_x IS NOT NULL
               WHERE depth<max_ray_depth AND NOT stop_tracing AND ray_len_idx=1
              )
    SELECT * FROM rs WHERE ray_len_idx=1;

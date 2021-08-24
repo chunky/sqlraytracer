@@ -1,23 +1,29 @@
 DROP TABLE IF EXISTS material CASCADE;
 CREATE TABLE material (materialid SERIAL PRIMARY KEY, name TEXT,
   mat_col_r DOUBLE PRECISION, mat_col_g DOUBLE PRECISION, mat_col_b DOUBLE PRECISION,
-  is_metal BOOLEAN NOT NULL, shade_normal BOOLEAN NOT NULL, is_mirror BOOLEAN NOT NULL);
-INSERT INTO material (name, mat_col_r, mat_col_g, mat_col_b, is_metal, shade_normal, is_mirror) VALUES
-    ('dark', 0.1, 0.1, 0.1, FALSE, FALSE, FALSE),
-    ('red', 0.95, 0.0, 0.0, FALSE, TRUE, FALSE),
-    ('green', 0.0, 0.95, 0.0, FALSE, TRUE, FALSE),
-    ('blue', 0.0, 0.0, 0.95, TRUE, TRUE, FALSE),
-    ('grey', 0.1, 0.1, 0.1, FALSE, FALSE, FALSE),
-    ('bright', 1.0, 1.0, 1.0, TRUE, TRUE, FALSE),
-    ('mirror', NULL, NULL, NULL, TRUE, FALSE, TRUE),
-    ('bluemirror', 0.0, 0.0, 0.3, TRUE, FALSE, TRUE),
-    ('greenmirror', 0.0, 0.2, 0.0, TRUE, FALSE, TRUE)
+  is_metal BOOLEAN NOT NULL, shade_normal BOOLEAN NOT NULL, is_mirror BOOLEAN NOT NULL,
+  is_dielectric BOOLEAN NOT NULL, eta DOUBLE PRECISION NOT NULL DEFAULT 1.0);
+INSERT INTO material (name, mat_col_r, mat_col_g, mat_col_b, is_metal, shade_normal, is_mirror, is_dielectric, eta) VALUES
+    ('dark', 0.1, 0.1, 0.1, FALSE, FALSE, FALSE, FALSE, 1.0),
+    ('red', 0.95, 0.0, 0.0, FALSE, TRUE, FALSE, FALSE, 1.0),
+    ('green', 0.0, 0.95, 0.0, FALSE, TRUE, FALSE, FALSE, 1.0),
+    ('blue', 0.0, 0.0, 0.95, TRUE, TRUE, FALSE, FALSE, 1.0),
+    ('grey', 0.1, 0.1, 0.1, FALSE, FALSE, FALSE, FALSE, 1.0),
+    ('bright', 1.0, 1.0, 1.0, TRUE, TRUE, FALSE, FALSE, 1.0),
+    ('mirror', NULL, NULL, NULL, TRUE, FALSE, TRUE, FALSE, 1.0),
+    ('bluemirror', 0.0, 0.0, 0.3, TRUE, FALSE, TRUE, FALSE, 1.0),
+    ('greenmirror', 0.0, 0.2, 0.0, TRUE, FALSE, TRUE, FALSE, 1.0),
+    ('glass', NULL, NULL, NULL, FALSE, FALSE, FALSE, TRUE, 1.5),
+    ('greenglass', 0.0, 0.2, 0.0, FALSE, FALSE, FALSE, TRUE, 1.5),
+    ('diamond', NULL, NULL, NULL, FALSE, FALSE, FALSE, TRUE, 2.4)
 ;
 
 DROP TABLE IF EXISTS scene CASCADE;
 CREATE TABLE IF NOT EXISTS scene (sceneid SERIAL PRIMARY KEY,
    scenename TEXT UNIQUE NOT NULL);
-INSERT INTO scene (scenename) VALUES ('onegreyball'),
+INSERT INTO scene (scenename) VALUES ('dielectricparty'),
+                                     ('oneglassball'),
+                                     ('onegreyball'),
                                      ('onegreenball'),
                                      ('twomirrorballs'),
                                      ('twodiffuseballs'),
@@ -61,6 +67,24 @@ INSERT INTO sphere (cx, cy, cz, radius, materialid, sceneid) VALUES
    (SELECT materialid FROM material WHERE name='mirror'), (SELECT sceneid FROM scene WHERE scenename='onemirrorball')),
 
 (0, -1250, 0, 1250,
+   (SELECT materialid FROM material WHERE name='grey'), (SELECT sceneid FROM scene WHERE scenename='oneglassball')),
+(0, 25, -40, 25,
+   (SELECT materialid FROM material WHERE name='glass'), (SELECT sceneid FROM scene WHERE scenename='oneglassball')),
+(0, 25, 30, 25,
+   (SELECT materialid FROM material WHERE name='red'), (SELECT sceneid FROM scene WHERE scenename='oneglassball')),
+
+(0, -1250, 0, 1250,
+   (SELECT materialid FROM material WHERE name='grey'), (SELECT sceneid FROM scene WHERE scenename='dielectricparty')),
+-- (0, 25, -20, 25,
+--    (SELECT materialid FROM material WHERE name='glass'), (SELECT sceneid FROM scene WHERE scenename='dielectricparty')),
+(-10, 25, -20, 25,
+   (SELECT materialid FROM material WHERE name='diamond'), (SELECT sceneid FROM scene WHERE scenename='dielectricparty')),
+-- (5, 20, -10, 20,
+--    (SELECT materialid FROM material WHERE name='diamond'), (SELECT sceneid FROM scene WHERE scenename='dielectricparty')),
+(10, 25, 30, 25,
+   (SELECT materialid FROM material WHERE name='red'), (SELECT sceneid FROM scene WHERE scenename='dielectricparty')),
+
+(0, -1250, 0, 1250,
    (SELECT materialid FROM material WHERE name='green'), (SELECT sceneid FROM scene WHERE scenename='adjacentballs')),
 (-24, 12, 0, 12,
    (SELECT materialid FROM material WHERE name='red'), (SELECT sceneid FROM scene WHERE scenename='adjacentballs')),
@@ -100,10 +124,10 @@ CREATE TABLE camera (cameraid INTEGER PRIMARY KEY, sceneid INTEGER NOT NULL REFE
   max_ray_depth INTEGER NOT NULL, samples_per_px INTEGER NOT NULL);
 INSERT INTO camera (cameraid, x, y, z, rot_x, rot_y, rot_z, fov_rad_x, fov_rad_y, max_ray_depth, samples_per_px, sceneid)
   VALUES (1.0, 0.0, 15.0, -120.0, 0.0, 0.0, 0.0, PI()/3.0, PI()/3.0,
-          40, 50, (SELECT sceneid FROM scene WHERE scenename='reflectiontest'));
+          40, 10, (SELECT sceneid FROM scene WHERE scenename='oneglassball'));
 
 DROP TABLE IF EXISTS img CASCADE;
 CREATE TABLE img (res_x INTEGER NOT NULL, res_y INTEGER NOT NULL, gamma DOUBLE PRECISION);
     INSERT INTO img (res_x, res_y, gamma)
-        VALUES (450, 450, 1.0);
+        VALUES (250, 250, 1.0);
 
