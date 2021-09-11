@@ -99,8 +99,10 @@ CREATE VIEW rays AS
            LEFT JOIN LATERAL
                (SELECT x1+dir_x*t AS hit_x, y1+dir_y*t AS hit_y, z1+dir_z*t AS hit_z,
                        x1+dir_x*t-cx AS norm_x, y1+dir_y*t-cy AS norm_y, z1+dir_z*t-cz AS norm_z,
-                       SQRT((x1+dir_x*t-cx)*(x1+dir_x*t-cx)+(y1+dir_y*t-cy)*(y1+dir_y*t-cy)+(z1+dir_z*t-cz)*(z1+dir_z*t-cz)) AS norm_len
-               ) sphere_normal ON discrim>0 AND t>0
+                       SQRT((x1+dir_x*t-cx)*(x1+dir_x*t-cx)+(y1+dir_y*t-cy)*(y1+dir_y*t-cy)+(z1+dir_z*t-cz)*(z1+dir_z*t-cz)) AS norm_len,
+                       ROW_NUMBER() OVER (PARTITION BY img_x, img_y, depth, px_sample_n ORDER BY t ASC) AS t_idx
+                       WHERE t>0
+               ) sphere_normal ON t_idx=1
            LEFT JOIN LATERAL
                (SELECT dir_x*norm_x + dir_y*norm_y + dir_z*norm_z AS dot_ray_norm,
                        SQRT((dir_x - 2 * norm_x * (dir_x*norm_x + dir_y*norm_y + dir_z*norm_z)/norm_len) * (dir_x - 2 * norm_x * (dir_x*norm_x + dir_y*norm_y + dir_z*norm_z)/norm_len) +
