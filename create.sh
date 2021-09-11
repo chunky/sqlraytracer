@@ -1,12 +1,6 @@
 #!/bin/sh
 
-PGHOST=localhost
-PGPORT=5432
-PGUSER=raytracer
-PGDB=raytracer
-
-PGPASSWORD=raytracer
-export PGPASSWORD
+. ./postgres_connection.sh
 
 # Creating this file overrides which scenes get rendered
 scenelist_override=scenelist_override.txt

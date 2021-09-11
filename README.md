@@ -12,9 +12,9 @@ Everyone writes a raytracer sooner or later. This is mine.
 sh create.sh
 ```
 
-The shell script contains host/database/user/pass/etc. There are
-no exotic needs other than "postgres, like version 10 and up or
-something"
+```postgres_connection.sh``` contains host/database/user/pass/etc.
+There are no exotic needs other than "postgres, like version 10 and up
+or something"
 
 For what it's worth, I created mine thus on my ubuntu desktop:
 ```shell
@@ -47,7 +47,8 @@ SELECT * FROM rays WHERE img_x=100 AND img_y=250
 ## Database
 
 This is implemented in pure SQL. It doesn't do anything like CREATE
-FUNCTION or other nonportables.
+FUNCTION or other nonportables, except for the trigger to do animation,
+which obviously doesn't count.
 
 At the same time, there are some not-entirely-common features of SQL
 that it needs:
