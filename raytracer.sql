@@ -117,20 +117,22 @@ CREATE VIEW rays AS
                 FROM sphere_sample ss WHERE ss.sampleno=1+CAST(FLOOR(ABS((100000*dir_x)-FLOOR(100000*dir_x))*n_sphere_samples) AS INTEGER)
                ) diffuse_scatter ON norm_x IS NOT NULL
            LEFT JOIN LATERAL
+               (SELECT (CASE WHEN is_dielectric THEN 1.0/eta ELSE eta END) AS ir) index_of_refraction ON norm_x IS NOT NULL
+           LEFT JOIN LATERAL
                (SELECT LEAST(1.0, (-dir_x*norm_x -dir_y*norm_y -dir_z*norm_z)) AS cos_theta,
-                       ((1.0-eta)/(1.0+eta))*((1.0-eta)/(1.0+eta)) AS r0
+                       ((1.0-ir)/(1.0+ir))*((1.0-ir)/(1.0+ir)) AS r0
                ) refract_cos_theta ON norm_x IS NOT NULL
           LEFT JOIN LATERAL
-               (SELECT (CASE WHEN is_dielectric THEN 1.0/eta ELSE eta END) * (dir_x + cos_theta * norm_x) AS refrac_dir_x,
-                       (CASE WHEN is_dielectric THEN 1.0/eta ELSE eta END) * (dir_y + cos_theta * norm_y) AS refrac_dir_y,
-                       (CASE WHEN is_dielectric THEN 1.0/eta ELSE eta END) * (dir_z + cos_theta * norm_z) AS refrac_dir_z,
+               (SELECT ir * (dir_x + cos_theta * norm_x) AS refrac_dir_x,
+                       ir * (dir_y + cos_theta * norm_y) AS refrac_dir_y,
+                       ir * (dir_z + cos_theta * norm_z) AS refrac_dir_z,
                        SQRT(1.0-cos_theta*cos_theta) AS sin_theta,
                        r0 + (1.0 - r0)*pow(1.0-cos_theta, 5) AS reflectance
                ) refrac_vec ON norm_x IS NOT NULL
           LEFT JOIN LATERAL
-               (SELECT -norm_x*SQRT(ABS(1.0 - refrac_dir_x*refrac_dir_x + refrac_dir_y*refrac_dir_y + refrac_dir_z*refrac_dir_z)) AS reflec_dir_x,
-                       -norm_y*SQRT(ABS(1.0 - refrac_dir_x*refrac_dir_x + refrac_dir_y*refrac_dir_y + refrac_dir_z*refrac_dir_z)) AS reflec_dir_y,
-                       -norm_z*SQRT(ABS(1.0 - refrac_dir_x*refrac_dir_x + refrac_dir_y*refrac_dir_y + refrac_dir_z*refrac_dir_z)) AS reflec_dir_z,
+               (SELECT -norm_x*SQRT(ABS(1.0 - (refrac_dir_x*refrac_dir_x + refrac_dir_y*refrac_dir_y + refrac_dir_z*refrac_dir_z))) AS reflec_dir_x,
+                       -norm_y*SQRT(ABS(1.0 - (refrac_dir_x*refrac_dir_x + refrac_dir_y*refrac_dir_y + refrac_dir_z*refrac_dir_z))) AS reflec_dir_y,
+                       -norm_z*SQRT(ABS(1.0 - (refrac_dir_x*refrac_dir_x + refrac_dir_y*refrac_dir_y + refrac_dir_z*refrac_dir_z))) AS reflec_dir_z,
                        (sin_theta*eta>1.0) OR (reflectance > RANDOM()) AS must_reflect
                ) reflec_vec ON norm_x IS NOT NULL
           LEFT JOIN LATERAL
