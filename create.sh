@@ -7,6 +7,10 @@ scenelist_override=scenelist_override.txt
 
 scenelist=scenelist.txt
 
+outputdir=example_outputs
+
+mkdir -p ${outputdir}
+
 psql \
 	--host=${PGHOST} \
 	--port=${PGPORT} \
@@ -15,9 +19,9 @@ psql \
 	--file=setup.sql \
 	--file=raytracer.sql \
 	--command="\\timing" \
-	--command="\\copy (select scenename from scene) to './${scenelist}' csv"
+	--command="\\copy (select scenename from scene) to './${outputdir}/${scenelist}' csv"
 
-test -e ${scenelist_override} && cp ${scenelist_override} ${scenelist}
+test -e ${scenelist_override} && cp ${scenelist_override} ${outputdir}/${scenelist}
 
 while read scenename
 do
@@ -30,9 +34,10 @@ do
   	--dbname=${PGDB} \
   	--command="UPDATE camera SET sceneid=(SELECT sceneid FROM scene WHERE scenename='${scenename}')" \
   	--command="\\timing" \
-	--command="\\copy (select * from ppm) to './${scenename}.ppm' csv"
+	--command="\\copy (select * from ppm) to './${outputdir}/${scenename}.ppm' csv"
 
-  xdg-open ${scenename}.ppm
+  xdg-open ./${outputdir}/${scenename}.ppm
+  convert ./${outputdir}/${scenename}.ppm ./${outputdir}/${scenename}.png
 
-done < ${scenelist}
+done < ./${outputdir}/${scenelist}
 
