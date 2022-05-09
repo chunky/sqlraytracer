@@ -36,7 +36,12 @@ do
   	--command="\\timing" \
 	--command="\\copy (select * from ppm) to './${outputdir}/${scenename}.ppm' csv"
 
-  xdg-open ./${outputdir}/${scenename}.ppm
+  if [ "$(uname)" == "Darwin" ]; then
+    open ./${outputdir}/${scenename}.ppm
+  else
+    xdg-open ./${outputdir}/${scenename}.ppm
+  fi
+  
   convert ./${outputdir}/${scenename}.ppm ./${outputdir}/${scenename}.png
 
 done < ./${outputdir}/${scenelist}
