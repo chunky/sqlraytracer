@@ -1,4 +1,6 @@
 debug_rays
+show_scene
+scenelist_override.txt
 scenelist.txt
 *.ppm
 anim
