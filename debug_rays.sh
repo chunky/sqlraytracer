@@ -14,7 +14,7 @@ psql \
         --command="\\copy (select sphereid, cx, cy, cz, radius from sphere inner join camera c ON c.sceneid=sphere.sceneid) to './spheres.csv' with csv header" \
 	--command="\\copy (select * from rays WHERE img_x=125 AND img_y between 120 and 195 and 0=img_y%5) to './rays.csv' with csv header"
 
-img_size=1024
+img_size=2048
 
 scale_vector=5
 
