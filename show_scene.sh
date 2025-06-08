@@ -103,8 +103,10 @@ montage \
        	${scenename}_zy.png \
        	${scenename}_xz.png \
        	${scenename}_3view.png \
-	${scenename}.png
+	fullscene_${scenename}.png
 
-xdg-open ${scenename}.png
 
 done < ./${scenelist}
+
+xdg-open .
+
