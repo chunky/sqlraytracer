@@ -18,7 +18,7 @@ psql \
 
 mkdir -p ${outfolder}
 
-for frame in `seq -w 0 1000`
+for frame in `seq 0 1000`
 do
   echo "Frame ${frame}"
   psql \
@@ -35,7 +35,6 @@ done
 ffmpeg \
 	-r 25 \
 	-i ./${outfolder}/${scenename}_%d.ppm \
-	-vcodec libx264 \
 	-crf 25 \
        	-pix_fmt yuv420p \
 	./${outfolder}/${scenename}.mp4
