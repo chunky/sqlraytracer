@@ -42,7 +42,9 @@ do
     xdg-open ./${outputdir}/${scenename}.ppm
   fi
   
-  convert ./${outputdir}/${scenename}.ppm ./${outputdir}/${scenename}.png
+  convert ./${outputdir}/${scenename}.ppm \
+	  -gravity SouthEast -pointsize 30 -fill black -annotate +10+10 "${scenename}" \
+	  ./${outputdir}/${scenename}.png
 
 done < ./${outputdir}/${scenelist}
 
