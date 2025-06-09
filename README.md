@@ -44,6 +44,9 @@ This is so I can examine rays bouncing through the scene with:
 SELECT * FROM rays WHERE img_x=100 AND img_y=250
 ```
 
+There's a script to get a quick-and-dirty view of a scene using gnuplot;
+the script ```show_scene.sh``` should generate a folder of outputs.
+
 ## Database
 
 This is implemented in pure SQL. It doesn't do anything like CREATE
@@ -122,8 +125,22 @@ I had a few things in mind that I wanted to do differently [worse?]:
 
 * Demoscene is an artform. I'm not golfing, this isn't minified
 * Not a single query; that can be done with CTEs, but ehhhhhhhh
-* Animation as an endgame
+* Animation as an endgame [see ```anim.sh```]
 * Mainly, I'm just buggering around with the wrong tool for the job
+
+### I asked Claude for an opinion
+
+*"Why would someone write something like this in the first place?"*
+
+> This is a fascinating example of SQL as a general-purpose programming language taken to an extreme. Someone wrote a complete ray tracer in PostgreSQL SQL, which is both impressive and... questionable.
+> 
+> [...]
+> 
+> This feels like either a brilliant computer science student's thesis project, a senior engineer's weekend experiment, or someone trapped in a very restrictive database-only environment who refused to give up on their ray tracing dreams.
+> 
+> It's the programming equivalent of building a race car out of Lego - technically impressive, but you probably shouldn't actually drive it.
+
+I can't tell if I'm flattered or offended.
 
 ## References
 
