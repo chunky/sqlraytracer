@@ -104,7 +104,15 @@ CREATE VIEW rays AS
                        WHERE t>0
                ) sphere_normal ON t_idx=1
            LEFT JOIN LATERAL
-               (SELECT norm_x_nonunit/norm_len AS norm_x, norm_y_nonunit/norm_len AS norm_y, norm_z_nonunit/norm_len AS norm_z
+               (SELECT CASE WHEN (norm_x_nonunit * dir_x + norm_y_nonunit * dir_y + norm_z_nonunit * dir_z) > 0
+                         THEN -norm_x_nonunit/norm_len 
+                         ELSE norm_x_nonunit/norm_len END AS norm_x,
+                    CASE WHEN (norm_x_nonunit * dir_x + norm_y_nonunit * dir_y + norm_z_nonunit * dir_z) > 0
+                         THEN -norm_y_nonunit/norm_len 
+                         ELSE norm_y_nonunit/norm_len END AS norm_y,
+                    CASE WHEN (norm_x_nonunit * dir_x + norm_y_nonunit * dir_y + norm_z_nonunit * dir_z) > 0
+                         THEN -norm_z_nonunit/norm_len 
+                         ELSE norm_z_nonunit/norm_len END AS norm_z
                ) sphere_unit_normal ON norm_x IS NOT NULL
            LEFT JOIN LATERAL
                (SELECT dir_x*norm_x + dir_y*norm_y + dir_z*norm_z AS dot_ray_norm,
