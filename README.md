@@ -4,7 +4,7 @@ Everyone writes a raytracer sooner or later. This is mine.
 
 ## Example Outputs
 
-<img src="example_outputs/dielectricparty.png" width=200> <img src="example_outputs/oneglassball.png" width=200> <img src="example_outputs/adjacentballs.png" width=200> <img src="example_outputs/onegreyball.png" width=200> <img src="example_outputs/reflectiontest.png" width=200> <img src="example_outputs/twodiffuseballs.png" width=200> <img src="example_outputs/onegreenball.png" width=200> <img src="example_outputs/onemirrorball.png" width=200> <img src="example_outputs/threemirrors.png" width=200> <img src="example_outputs/twomirrorballs.png" width=200>
+<img src="example_outputs/dielectricparty.png" width=200> <img src="example_outputs/oneglassball.png" width=200> <img src="example_outputs/onemirrorball.png" width=200> <img src="example_outputs/glassmatrix.png" width=200> <img src="example_outputs/airy.png" width=200> <img src="example_outputs/onediamondball.png" width=200> <img src="example_outputs/oneantiglassball.png" width=200> <img src="example_outputs/adjacentballs.png" width=200> <img src="example_outputs/onegreyball.png" width=200> <img src="example_outputs/reflectiontest.png" width=200> <img src="example_outputs/twodiffuseballs.png" width=200> <img src="example_outputs/onegreenball.png" width=200> <img src="example_outputs/threemirrors.png" width=200> <img src="example_outputs/twomirrorballs.png" width=200> <img src="example_outputs/busyday.png" width=200>
 
 ## Usage
 
