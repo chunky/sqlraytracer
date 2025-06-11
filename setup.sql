@@ -165,11 +165,11 @@ SELECT (RANDOM()-0.5) * 100, 50 + RANDOM() * 50, (RANDOM()-0.5) * 100, RANDOM() 
     GROUP BY generate_series;
 
 INSERT INTO sphere (cx, cy, cz, radius, materialid, sceneid, coefficient_of_restitution)
-WITH params(r, x1, y1) AS (SELECT 5, -100, -100)
+WITH params(r, x1, y1) AS (SELECT 5, -60, -15)
 SELECT x1 + 2 * r * x, y1 + 2 * r * y, -30, r,
       (SELECT materialid FROM material WHERE name='glass'), (SELECT sceneid FROM scene WHERE scenename='glassmatrix'),
       1.0
-    FROM generate_series(1, 100) X, generate_series(1, 100) Y, params;
+    FROM generate_series(1, 11) X, generate_series(1, 11) Y, params;
 
 UPDATE sphere SET radius = cy WHERE radius IS NULL;
 UPDATE sphere SET radius2 = radius*radius WHERE radius2 IS NULL;
