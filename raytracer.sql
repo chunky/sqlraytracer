@@ -66,21 +66,30 @@ CREATE VIEW rays AS
                  -- x1, y1, z1
                  hit_x, hit_y, hit_z,
                  -- dir_x, dir_y, dir_z
-                 CASE WHEN is_metal OR (is_dielectric AND must_reflect)
-                          THEN (dir_x - 2 * norm_x * dot_ray_norm) / reflection_len
-                     WHEN is_dielectric THEN (reflec_dir_x + refrac_dir_x) / refrac_len
-                     ELSE diffuse_dir_x/diffuse_dir_len
-                 END,
-                 CASE WHEN is_metal OR (is_dielectric AND must_reflect)
-                          THEN (dir_y - 2 * norm_y * dot_ray_norm) / reflection_len
-                     WHEN is_dielectric THEN (reflec_dir_y + refrac_dir_y) / refrac_len
-                     ELSE diffuse_dir_y/diffuse_dir_len
-                  END,
-                 CASE WHEN is_metal OR (is_dielectric AND must_reflect)
-                          THEN (dir_z - 2 * norm_z * dot_ray_norm) / reflection_len
-                     WHEN is_dielectric THEN (reflec_dir_z + refrac_dir_z) / refrac_len
-                     ELSE diffuse_dir_z/diffuse_dir_len
-                  END,
+CASE WHEN is_metal 
+     THEN (dir_x - 2 * norm_x * dot_ray_norm) / reflection_len
+     WHEN is_dielectric AND must_reflect
+     THEN reflec_dir_x / final_dir_len
+     WHEN is_dielectric 
+     THEN refrac_dir_x / final_dir_len
+     ELSE diffuse_dir_x/diffuse_dir_len
+END,
+CASE WHEN is_metal 
+     THEN (dir_y - 2 * norm_y * dot_ray_norm) / reflection_len
+     WHEN is_dielectric AND must_reflect
+     THEN reflec_dir_y / final_dir_len
+     WHEN is_dielectric 
+     THEN refrac_dir_y / final_dir_len
+     ELSE diffuse_dir_y/diffuse_dir_len
+END,
+CASE WHEN is_metal 
+     THEN (dir_z - 2 * norm_z * dot_ray_norm) / reflection_len
+     WHEN is_dielectric AND must_reflect
+     THEN reflec_dir_z / final_dir_len
+     WHEN is_dielectric 
+     THEN refrac_dir_z / final_dir_len
+     ELSE diffuse_dir_z/diffuse_dir_len
+END,
                  1.0,
                  norm_x, norm_y, norm_z, 1.0,
                  discrim IS NULL, ROW_NUMBER() OVER (PARTITION BY img_x, img_y, depth+1, px_sample_n
@@ -88,14 +97,15 @@ CREATE VIEW rays AS
                  sphereid, n_sphere_samples, (inside_dielectric AND NOT must_reflect) OR (NOT inside_dielectric AND NOT is_dielectric)
            FROM rs
            LEFT JOIN LATERAL
-               (SELECT s.*, (((x1-cx)*dir_x+(y1-cy)*dir_y+(z1-cz)*dir_z)*((x1-cx)*dir_x+(y1-cy)*dir_y+(z1-cz)*dir_z)-
-                             (((x1-cx)*(x1-cx)+(y1-cy)*(y1-cy)+(z1-cz)*(z1-cz)-radius2)*dir_lensquared)) discrim,
-                       (-((x1-cx)*dir_x+(y1-cy)*dir_y+(z1-cz)*dir_z)
-                            -SQRT(((x1-cx)*dir_x+(y1-cy)*dir_y+(z1-cz)*dir_z)*((x1-cx)*dir_x+(y1-cy)*dir_y+(z1-cz)*dir_z)-
-                                    (((x1-cx)*(x1-cx)+(y1-cy)*(y1-cy)+(z1-cz)*(z1-cz)-radius2)*dir_lensquared))/dir_lensquared) t
-                         FROM sphere s
-                         WHERE s.sceneid=rs.sceneid
-                       ) hit_sphere ON discrim>0 AND t>0
+               (SELECT s.*, discrim,
+                       CASE WHEN t_near > 0.001 THEN t_near ELSE t_far END AS t
+                         FROM sphere s,
+                              LATERAL (SELECT (x1-s.cx)*dir_x+(y1-s.cy)*dir_y+(z1-s.cz)*dir_z AS hb) hbv,
+                              LATERAL (SELECT hb*hb - ((x1-s.cx)*(x1-s.cx)+(y1-s.cy)*(y1-s.cy)+(z1-s.cz)*(z1-s.cz)-s.radius2)*dir_lensquared AS discrim) dv,
+                              LATERAL (SELECT (-hb - SQRT(discrim))/dir_lensquared AS t_near,
+                                              (-hb + SQRT(discrim))/dir_lensquared AS t_far) tv
+                         WHERE s.sceneid=rs.sceneid AND discrim > 0
+                       ) hit_sphere ON t>0.001
            LEFT JOIN LATERAL
                (SELECT x1+dir_x*t AS hit_x, y1+dir_y*t AS hit_y, z1+dir_z*t AS hit_z,
                        x1+dir_x*t-cx AS norm_x_nonunit, y1+dir_y*t-cy AS norm_y_nonunit, z1+dir_z*t-cz AS norm_z_nonunit,
@@ -128,24 +138,42 @@ CREATE VIEW rays AS
                 FROM sphere_sample ss WHERE ss.sampleno=1+CAST(FLOOR(ABS((100000*dir_x)-FLOOR(100000*dir_x))*n_sphere_samples) AS INTEGER)
                ) diffuse_scatter ON norm_x IS NOT NULL
            LEFT JOIN LATERAL
-               (SELECT (CASE WHEN is_dielectric THEN 1.0/eta ELSE eta END) AS ir) index_of_refraction ON norm_x IS NOT NULL
-           LEFT JOIN LATERAL
-               (SELECT LEAST(1.0, (-(dir_x*norm_x) -(dir_y*norm_y) -(dir_z*norm_z))) AS cos_theta,
-                       ((1.0-ir)/(1.0+ir))*((1.0-ir)/(1.0+ir)) AS r0
-               ) refract_cos_theta ON norm_x IS NOT NULL
-          LEFT JOIN LATERAL
-               (SELECT ir * (dir_x + cos_theta * norm_x) AS refrac_dir_x,
-                       ir * (dir_y + cos_theta * norm_y) AS refrac_dir_y,
-                       ir * (dir_z + cos_theta * norm_z) AS refrac_dir_z,
-                       SQRT(1.0-cos_theta*cos_theta) AS sin_theta,
-                       r0 + (1.0 - r0)*pow(1.0-cos_theta, 5) AS reflectance
-               ) refrac_vec ON norm_x IS NOT NULL
-          LEFT JOIN LATERAL
-               (SELECT -norm_x*SQRT(ABS(1.0 - (refrac_dir_x*refrac_dir_x + refrac_dir_y*refrac_dir_y + refrac_dir_z*refrac_dir_z))) AS reflec_dir_x,
-                       -norm_y*SQRT(ABS(1.0 - (refrac_dir_x*refrac_dir_x + refrac_dir_y*refrac_dir_y + refrac_dir_z*refrac_dir_z))) AS reflec_dir_y,
-                       -norm_z*SQRT(ABS(1.0 - (refrac_dir_x*refrac_dir_x + refrac_dir_y*refrac_dir_y + refrac_dir_z*refrac_dir_z))) AS reflec_dir_z,
-                       (sin_theta*ir>1.0) OR (reflectance > RANDOM()) AS must_reflect
-               ) reflec_vec ON norm_x IS NOT NULL
+               (SELECT (CASE WHEN is_dielectric AND (norm_x_nonunit * dir_x + norm_y_nonunit * dir_y + norm_z_nonunit * dir_z) > 0
+                             THEN eta
+                             WHEN is_dielectric
+                             THEN 1.0/eta
+                             ELSE eta END) AS ir) index_of_refraction ON norm_x IS NOT NULL
+LEFT JOIN LATERAL
+    (SELECT ABS(dir_x*norm_x + dir_y*norm_y + dir_z*norm_z) AS cos_theta,
+            ((1.0-ir)/(1.0+ir))*((1.0-ir)/(1.0+ir)) AS r0
+    ) refract_cos_theta ON norm_x IS NOT NULL
+LEFT JOIN LATERAL
+    (SELECT 
+        -- Discriminant for total internal reflection check
+        1.0 - ir*ir*(1.0-cos_theta*cos_theta) AS refrac_discriminant,
+        -- Correct refraction direction
+        ir * dir_x + (ir * cos_theta - SQRT(GREATEST(0.0, 1.0 - ir*ir*(1.0-cos_theta*cos_theta)))) * norm_x AS refrac_dir_x,
+        ir * dir_y + (ir * cos_theta - SQRT(GREATEST(0.0, 1.0 - ir*ir*(1.0-cos_theta*cos_theta)))) * norm_y AS refrac_dir_y,
+        ir * dir_z + (ir * cos_theta - SQRT(GREATEST(0.0, 1.0 - ir*ir*(1.0-cos_theta*cos_theta)))) * norm_z AS refrac_dir_z,
+        -- Fresnel reflectance
+        r0 + (1.0 - r0)*pow(1.0-cos_theta, 5) AS reflectance
+    ) refrac_vec ON norm_x IS NOT NULL
+LEFT JOIN LATERAL
+    (SELECT 
+        dir_x - 2.0 * (dir_x*norm_x + dir_y*norm_y + dir_z*norm_z) * norm_x AS reflec_dir_x,
+        dir_y - 2.0 * (dir_x*norm_x + dir_y*norm_y + dir_z*norm_z) * norm_y AS reflec_dir_y,
+        dir_z - 2.0 * (dir_x*norm_x + dir_y*norm_y + dir_z*norm_z) * norm_z AS reflec_dir_z,
+        -- Total internal reflection check
+        (refrac_discriminant < 0) OR (reflectance > RANDOM()) AS must_reflect
+    ) reflec_vec ON norm_x IS NOT NULL
+    LEFT JOIN LATERAL
+    (SELECT 
+        CASE WHEN must_reflect 
+             THEN SQRT(reflec_dir_x*reflec_dir_x + reflec_dir_y*reflec_dir_y + reflec_dir_z*reflec_dir_z)
+             ELSE SQRT(refrac_dir_x*refrac_dir_x + refrac_dir_y*refrac_dir_y + refrac_dir_z*refrac_dir_z)
+        END AS final_dir_len
+    ) final_dir_len ON norm_x IS NOT NULL
+
           LEFT JOIN LATERAL
                (SELECT SQRT((reflec_dir_x+refrac_dir_x)*(reflec_dir_x+refrac_dir_x)+
                        (reflec_dir_y+refrac_dir_y)*(reflec_dir_y+refrac_dir_y)+
