@@ -1,3 +1,35 @@
+
+<div align="right">
+  <details>
+    <summary >🌐 Language</summary>
+    <div>
+      <div align="center">
+        <a href="https://openaitx.github.io/view.html?user=chunky&project=sqlraytracer&lang=en">English</a>
+        | <a href="https://openaitx.github.io/view.html?user=chunky&project=sqlraytracer&lang=zh-CN">简体中文</a>
+        | <a href="https://openaitx.github.io/view.html?user=chunky&project=sqlraytracer&lang=zh-TW">繁體中文</a>
+        | <a href="https://openaitx.github.io/view.html?user=chunky&project=sqlraytracer&lang=ja">日本語</a>
+        | <a href="https://openaitx.github.io/view.html?user=chunky&project=sqlraytracer&lang=ko">한국어</a>
+        | <a href="https://openaitx.github.io/view.html?user=chunky&project=sqlraytracer&lang=hi">हिन्दी</a>
+        | <a href="https://openaitx.github.io/view.html?user=chunky&project=sqlraytracer&lang=th">ไทย</a>
+        | <a href="https://openaitx.github.io/view.html?user=chunky&project=sqlraytracer&lang=fr">Français</a>
+        | <a href="https://openaitx.github.io/view.html?user=chunky&project=sqlraytracer&lang=de">Deutsch</a>
+        | <a href="https://openaitx.github.io/view.html?user=chunky&project=sqlraytracer&lang=es">Español</a>
+        | <a href="https://openaitx.github.io/view.html?user=chunky&project=sqlraytracer&lang=it">Italiano</a>
+        | <a href="https://openaitx.github.io/view.html?user=chunky&project=sqlraytracer&lang=ru">Русский</a>
+        | <a href="https://openaitx.github.io/view.html?user=chunky&project=sqlraytracer&lang=pt">Português</a>
+        | <a href="https://openaitx.github.io/view.html?user=chunky&project=sqlraytracer&lang=nl">Nederlands</a>
+        | <a href="https://openaitx.github.io/view.html?user=chunky&project=sqlraytracer&lang=pl">Polski</a>
+        | <a href="https://openaitx.github.io/view.html?user=chunky&project=sqlraytracer&lang=ar">العربية</a>
+        | <a href="https://openaitx.github.io/view.html?user=chunky&project=sqlraytracer&lang=fa">فارسی</a>
+        | <a href="https://openaitx.github.io/view.html?user=chunky&project=sqlraytracer&lang=tr">Türkçe</a>
+        | <a href="https://openaitx.github.io/view.html?user=chunky&project=sqlraytracer&lang=vi">Tiếng Việt</a>
+        | <a href="https://openaitx.github.io/view.html?user=chunky&project=sqlraytracer&lang=id">Bahasa Indonesia</a>
+        | <a href="https://openaitx.github.io/view.html?user=chunky&project=sqlraytracer&lang=as">অসমীয়া</
+      </div>
+    </div>
+  </details>
+</div>
+
 # A Pure SQL Raytracer
 
 Everyone writes a raytracer sooner or later. This is mine.
